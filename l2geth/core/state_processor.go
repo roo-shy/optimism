@@ -17,8 +17,6 @@
 package core
 
 import (
-	"fmt"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/misc"
@@ -93,10 +91,7 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 		// This should only be allowed to pass if the transaction is in the ctc
 		// already. The presence of `Index` should specify this.
 		index := tx.GetMeta().Index
-		if index == nil {
-			return nil, fmt.Errorf("cannot convert tx to OVM message: %w", err)
-		}
-		if msg.QueueOrigin() != types.QueueOriginL1ToL2 {
+		if index == nil && msg.QueueOrigin() != types.QueueOriginL1ToL2 {
 			return nil, err
 		}
 	}

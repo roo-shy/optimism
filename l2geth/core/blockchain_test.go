@@ -981,8 +981,6 @@ func TestLogReorgs(t *testing.T) {
 }
 
 func TestLogRebirth(t *testing.T) {
-	t.Skip("OVM Genesis breaks this test because it adds the OVM contracts to the state.")
-
 	var (
 		key1, _ = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
 		addr1   = crypto.PubkeyToAddress(key1.PublicKey)
@@ -1421,8 +1419,6 @@ func TestEIP155Transition(t *testing.T) {
 }
 
 func TestEIP161AccountRemoval(t *testing.T) {
-	t.Skip("OVM breaks with `expected account to exist`, probably based on some unknown transaction failure.")
-
 	// Configure and generate a sample block chain
 	var (
 		db      = rawdb.NewMemoryDatabase()
@@ -2346,10 +2342,12 @@ func TestDeleteCreateRevert(t *testing.T) {
 	blocks, _ := GenerateChain(params.TestChainConfig, genesis, engine, db, 1, func(i int, b *BlockGen) {
 		b.SetCoinbase(common.Address{1})
 		// One transaction to AAAA
-		tx, _ := types.SignTx(types.NewTransaction(0, aa, big.NewInt(0), 50000, big.NewInt(1), nil), types.HomesteadSigner{}, key)
+		tx, _ := types.SignTx(types.NewTransaction(0, aa,
+			big.NewInt(0), 50000, big.NewInt(1), nil), types.HomesteadSigner{}, key)
 		b.AddTx(tx)
 		// One transaction to BBBB
-		tx, _ = types.SignTx(types.NewTransaction(1, bb, big.NewInt(0), 100000, big.NewInt(1), nil), types.HomesteadSigner{}, key)
+		tx, _ = types.SignTx(types.NewTransaction(1, bb,
+			big.NewInt(0), 100000, big.NewInt(1), nil), types.HomesteadSigner{}, key)
 		b.AddTx(tx)
 	})
 	// Import the canonical chain
