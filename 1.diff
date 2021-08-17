@@ -1,0 +1,3277 @@
+diff -r l2geth/accounts/abi/abi.go ../go-ethereum/accounts/abi/abi.go
+22d21
+< 	"errors"
+27d25
+< 	"github.com/ethereum/go-ethereum/crypto"
+37d34
+< 	MethodsById map[[4]byte]*Method
+126d122
+< 	abi.MethodsById = make(map[[4]byte]*Method)
+143c139
+< 			method := Method{
+---
+> 			abi.Methods[name] = Method{
+150,153d145
+< 			abi.Methods[name] = method
+< 			// add method to the id cache
+< 			sigdata := method.ID()
+< 			abi.MethodsById[[4]byte{sigdata[0], sigdata[1], sigdata[2], sigdata[3]}] = &method
+179,182c171,174
+< 
+< 	method, exist := abi.MethodsById[[4]byte{sigdata[0], sigdata[1], sigdata[2], sigdata[3]}]
+< 	if !exist {
+< 		return nil, fmt.Errorf("no method with id: %#x", sigdata[:4])
+---
+> 	for _, method := range abi.Methods {
+> 		if bytes.Equal(method.ID(), sigdata[:4]) {
+> 			return &method, nil
+> 		}
+184c176
+< 	return method, nil
+---
+> 	return nil, fmt.Errorf("no method with id: %#x", sigdata[:4])
+196,217d187
+< }
+< 
+< // RevertSelector is a special function selector for revert reason unpacking.
+< var RevertSelector = crypto.Keccak256([]byte("Error(string)"))[:4]
+< 
+< // UnpackRevert resolves the abi-encoded revert reason. According to the solidity
+< // docs https://docs.soliditylang.org/en/v0.8.4/control-structures.html#revert,
+< // the provided revert reason is abi-encoded as if it were a call to a function
+< // `Error(string)`. So it's a special tool for it.
+< func UnpackRevert(data []byte) (string, error) {
+< 	if len(data) < 4 {
+< 		return "", errors.New("invalid data for unpacking")
+< 	}
+< 	if !bytes.Equal(data[:4], RevertSelector) {
+< 		return "", errors.New("invalid data for unpacking")
+< 	}
+< 	typ, _ := NewType("string", "", nil)
+< 	unpacked, err := (Arguments{{Type: typ}}).UnpackValues(data[4:])
+< 	if err != nil {
+< 		return "", err
+< 	}
+< 	return unpacked[0].(string), nil
+diff -r l2geth/accounts/abi/bind/backends/simulated.go ../go-ethereum/accounts/abi/bind/backends/simulated.go
+604,607d603
+< func (m callmsg) L1MessageSender() *common.Address { return m.CallMsg.L1MessageSender }
+< func (m callmsg) L1BlockNumber() *big.Int          { return m.CallMsg.L1BlockNumber }
+< func (m callmsg) QueueOrigin() types.QueueOrigin   { return m.CallMsg.QueueOrigin }
+< 
+diff -r l2geth/accounts/abi/bind/backends/simulated_test.go ../go-ethereum/accounts/abi/bind/backends/simulated_test.go
+359,360d358
+< 	t.Skip("OVM breaks this because gas consumption is not yet standardized")
+< 
+diff -r l2geth/accounts/abi/bind/bind_test.go ../go-ethereum/accounts/abi/bind/bind_test.go
+497,498d496
+< 			t.Skip("OVM breaks this... SKIPPING: CallFrom test. CALLER must be transpiled for this test to work properly.")
+< 
+546,547d543
+< 			t.Skip("OVM breaks this... SKIPPING: NonExistent contract test. This should be fixed & should pass if we returned the correct error messages.")
+< 
+646,647d641
+< 			t.Skip("OVM breaks this... SKIPPING: CallFrom test. CALLER must be transpiled for this test to work properly.")
+< 
+1284,1285d1277
+< 			t.Skip("OVM breaks this... SKIPPING: UseLibrary test.")
+< 
+1503,1504d1494
+< 		t.Skip("OVM breaks this... SKIPPING: MultiContracts test.")
+< 
+diff -r l2geth/accounts/keystore/keystore.go ../go-ethereum/accounts/keystore/keystore.go
+24d23
+< 	"bytes"
+40d38
+< 	"github.com/ethereum/go-ethereum/core/vm"
+43d40
+< 	"github.com/ethereum/go-ethereum/log"
+86,100d82
+< 	if vm.UsingOVM {
+< 		// Add a deterministic key to the key store so that
+< 		// all clique blocks are signed with the same key
+< 		input := make([]byte, 65)
+< 		rng := bytes.NewReader(input)
+< 		key, err := newKey(rng)
+< 		log.Info("Adding key to keyring", "address", key.Address.Hex())
+< 		if err != nil {
+< 			panic(fmt.Sprintf("cannot create key: %s", err))
+< 		}
+< 		_, err = ks.importKey(key, "")
+< 		if err != nil {
+< 			panic(fmt.Sprintf("cannot import key: %s", err))
+< 		}
+< 	}
+diff -r l2geth/accounts/scwallet/wallet.go ../go-ethereum/accounts/scwallet/wallet.go
+315c315
+< 		return "Bricked, waiting for full wipe", nil
+---
+> 		return fmt.Sprintf("Bricked, waiting for full wipe"), nil
+321c321
+< 		return "Empty, waiting for initialization", nil
+---
+> 		return fmt.Sprintf("Empty, waiting for initialization"), nil
+323c323
+< 		return "Online", nil
+---
+> 		return fmt.Sprintf("Online"), nil
+Only in ../go-ethereum/: appveyor.yml
+Only in l2geth/build: bin
+diff -r l2geth/build/checksums.txt ../go-ethereum/build/checksums.txt
+3c3
+< 98de84e69726a66da7b4e58eac41b99cbe274d7e8906eeb8a5b7eb0aadee7f7c  go1.14.2.src.tar.gz
+---
+> aae5be954bdc40bcf8006eb77e8d8a5dde412722bc8effcdaf9772620d06420c  go1.13.6.src.tar.gz
+5,21c5,19
+< aeaa5498682246b87d0b77ece283897348ea03d98e816760a074058bfca60b2a  golangci-lint-1.24.0-windows-amd64.zip
+< 7e854a70d449fe77b7a91583ec88c8603eb3bf96c45d52797dc4ba3f2f278dbe  golangci-lint-1.24.0-darwin-386.tar.gz
+< 835101fae192c3a2e7a51cb19d5ac3e1a40b0e311955e89bc21d61de78635979  golangci-lint-1.24.0-linux-armv6.tar.gz
+< a041a6e6a61c9ff3dbe58673af13ea00c76bcd462abede0ade645808e97cdd6d  golangci-lint-1.24.0-windows-386.zip
+< 7cc73eb9ca02b7a766c72b913f8080401862b10e7bb90c09b085415a81f21609  golangci-lint-1.24.0-freebsd-armv6.tar.gz
+< 537bb2186987b5e68ad4e8829230557f26087c3028eb736dea1662a851bad73d  golangci-lint-1.24.0-linux-armv7.tar.gz
+< 8cb1bc1e63d8f0d9b71fcb10b38887e1646a6b8a120ded2e0cd7c3284528f633  golangci-lint-1.24.0-linux-mips64.tar.gz
+< 095d3f8bf7fc431739861574d0b58d411a617df2ed5698ce5ae5ecc66d23d44d  golangci-lint-1.24.0-freebsd-armv7.tar.gz
+< e245df27cec3827aef9e7afbac59e92816978ee3b64f84f7b88562ff4b2ac225  golangci-lint-1.24.0-linux-arm64.tar.gz
+< 35d6d5927e19f0577cf527f0e4441dbb37701d87e8cf729c98a510fce397fbf7  golangci-lint-1.24.0-linux-ppc64le.tar.gz
+< a1ed66353b8ceb575d78db3051491bce3ac1560e469a9bc87e8554486fec7dfe  golangci-lint-1.24.0-freebsd-386.tar.gz
+< 241ca454102e909de04957ff8a5754c757cefa255758b3e1fba8a4533d19d179  golangci-lint-1.24.0-linux-amd64.tar.gz
+< ff488423db01a0ec8ffbe4e1d65ef1be6a8d5e6d7930cf380ce8aaf714125470  golangci-lint-1.24.0-linux-386.tar.gz
+< f05af56f15ebbcf77663a8955d1e39009b584ce8ea4c5583669369d80353a113  golangci-lint-1.24.0-darwin-amd64.tar.gz
+< b0096796c0ffcd6c350a2ec006100e7ef5f0597b43a204349d4f997273fb32a7  golangci-lint-1.24.0-freebsd-amd64.tar.gz
+< c9c2867380e85628813f1f7d1c3cfc6c6f7931e89bea86f567ff451b8cdb6654  golangci-lint-1.24.0-linux-mips64le.tar.gz
+< 2feb97fa61c934aa3eba9bc104ab5dd8fb946791d58e64060e8857e800eeae0b  golangci-lint-1.24.0-linux-s390x.tar.gz
+\ No newline at end of file
+---
+> 478994633b0f5121a7a8d4f368078093e21014fdc7fb2c0ceeae63668c13c5b6  golangci-lint-1.22.2-freebsd-amd64.tar.gz
+> fcf80824c21567eb0871055711bf9bdca91cf9a081122e2a45f1d11fed754600  golangci-lint-1.22.2-darwin-amd64.tar.gz
+> cda85c72fc128b2ea0ae05baea7b91172c63aea34064829f65285f1dd536f1e0  golangci-lint-1.22.2-windows-386.zip
+> 94f04899f620aadc9c1524e5482e415efdbd993fa2b2918c4fec2798f030ac1c  golangci-lint-1.22.2-linux-armv7.tar.gz
+> 0e72a87d71edde00b6e37e84a99841833ad55fee83e20d21130a7a622b2860bb  golangci-lint-1.22.2-freebsd-386.tar.gz
+> 86def2f31fe8fd7c05674104ed2a4bef3e44b7132b93c6ad2f52f198b3d01801  golangci-lint-1.22.2-linux-s390x.tar.gz
+> b0df4546d36be94e8107733ba290b98dd9b7e41a42d3fb202e87fc7e4ee800c3  golangci-lint-1.22.2-freebsd-armv6.tar.gz
+> 3d45958dcf6a8d195086d2fced1a21db42a90815dfd156d180efa62dbdda6724  golangci-lint-1.22.2-darwin-386.tar.gz
+> 7ee29f35c74fab017a454237990c74d984ce3855960f2c10509238992bb781f9  golangci-lint-1.22.2-linux-arm64.tar.gz
+> 52086ac52a502b68578e58e35d3964f127c16d7a90b9ffcb399a004d055ded51  golangci-lint-1.22.2-linux-386.tar.gz
+> c2e4df1fab2ae53762f9baac6041503eeeaa968ce38ea41779f7cb526751c667  golangci-lint-1.22.2-windows-amd64.zip
+> 109d38cdc89f271392f5a138d6782657157f9f496fd4801956efa2d0428e0cbe  golangci-lint-1.22.2-linux-amd64.tar.gz
+> f08aae4868d4828c8f07deb0dcd941a1da695b97e58d15e9f3d1d07dcc7a0c84  golangci-lint-1.22.2-linux-armv6.tar.gz
+> 37af03d9c144d527cb15c46a07e6a22d3f62b5491e34ad6f3bfe6bb0b0b597d4  golangci-lint-1.22.2-linux-ppc64le.tar.gz
+> 251a1081d53944f1d5f86216d752837b23079f90605c9d1cc628da1ffcd2e749  golangci-lint-1.22.2-freebsd-armv7.tar.gz
+diff -r l2geth/build/ci.go ../go-ethereum/build/ci.go
+328c328
+< 	gotest.Args = append(gotest.Args, "-p", "1")
+---
+> 	gotest.Args = append(gotest.Args, "-p", "1", "-timeout", "5m")
+359c359
+< 	const version = "1.24.0"
+---
+> 	const version = "1.22.2"
+Only in l2geth/: CHANGELOG.md
+Only in ../go-ethereum/: circle.yml
+diff -r l2geth/cmd/geth/consolecmd_test.go ../go-ethereum/cmd/geth/consolecmd_test.go
+34c34
+< 	ipcAPIs  = "admin:1.0 debug:1.0 eth:1.0 ethash:1.0 miner:1.0 net:1.0 personal:1.0 rollup:1.0 rollup_personal:1.0 rpc:1.0 shh:1.0 txpool:1.0 web3:1.0"
+---
+> 	ipcAPIs  = "admin:1.0 debug:1.0 eth:1.0 ethash:1.0 miner:1.0 net:1.0 personal:1.0 rpc:1.0 shh:1.0 txpool:1.0 web3:1.0"
+diff -r l2geth/cmd/geth/genesis_test.go ../go-ethereum/cmd/geth/genesis_test.go
+90d89
+< 	t.Skip("Needs configurable chainid passed through")
+diff -r l2geth/cmd/geth/main.go ../go-ethereum/cmd/geth/main.go
+141d140
+< 		utils.ChainIdFlag,
+152,172d150
+< 	optimismFlags = []cli.Flag{
+< 		utils.Eth1SyncServiceEnable,
+< 		utils.Eth1CanonicalTransactionChainDeployHeightFlag,
+< 		utils.Eth1L1CrossDomainMessengerAddressFlag,
+< 		utils.Eth1L1FeeWalletAddressFlag,
+< 		utils.Eth1StandardBridgeAddressFlag,
+< 		utils.Eth1ChainIdFlag,
+< 		utils.RollupClientHttpFlag,
+< 		utils.RollupEnableVerifierFlag,
+< 		utils.RollupAddressManagerOwnerAddressFlag,
+< 		utils.RollupTimstampRefreshFlag,
+< 		utils.RollupPollIntervalFlag,
+< 		utils.RollupStateDumpPathFlag,
+< 		utils.RollupMaxCalldataSizeFlag,
+< 		utils.RollupBackendFlag,
+< 		utils.RollupEnforceFeesFlag,
+< 		utils.RollupFeeThresholdDownFlag,
+< 		utils.RollupFeeThresholdUpFlag,
+< 		utils.GasPriceOracleOwnerAddress,
+< 	}
+< 
+251d228
+< 	app.Flags = append(app.Flags, optimismFlags...)
+456,460d432
+< 		}
+< 		if ctx.GlobalBool(utils.Eth1SyncServiceEnable.Name) {
+< 			if err := ethereum.SyncService().Start(); err != nil {
+< 				utils.Fatalf("Failed to start syncservice: %v", err)
+< 			}
+diff -r l2geth/cmd/geth/usage.go ../go-ethereum/cmd/geth/usage.go
+66,88d65
+< 		Name: "OPTIMISM",
+< 		Flags: []cli.Flag{
+< 			utils.Eth1SyncServiceEnable,
+< 			utils.Eth1CanonicalTransactionChainDeployHeightFlag,
+< 			utils.Eth1L1CrossDomainMessengerAddressFlag,
+< 			utils.Eth1L1FeeWalletAddressFlag,
+< 			utils.Eth1StandardBridgeAddressFlag,
+< 			utils.Eth1ChainIdFlag,
+< 			utils.RollupClientHttpFlag,
+< 			utils.RollupAddressManagerOwnerAddressFlag,
+< 			utils.RollupEnableVerifierFlag,
+< 			utils.RollupTimstampRefreshFlag,
+< 			utils.RollupPollIntervalFlag,
+< 			utils.RollupStateDumpPathFlag,
+< 			utils.RollupMaxCalldataSizeFlag,
+< 			utils.RollupBackendFlag,
+< 			utils.RollupEnforceFeesFlag,
+< 			utils.RollupFeeThresholdDownFlag,
+< 			utils.RollupFeeThresholdUpFlag,
+< 			utils.GasPriceOracleOwnerAddress,
+< 		},
+< 	},
+< 	{
+98d74
+< 			utils.ChainIdFlag,
+diff -r l2geth/cmd/puppeth/module_wallet.go ../go-ethereum/cmd/puppeth/module_wallet.go
+185c185
+< 		log.Warn("Wallet devp2p port seems unreachable", "server", client.server, "port", nodePort, "err", err)
+---
+> 		log.Warn(fmt.Sprintf("Wallet devp2p port seems unreachable"), "server", client.server, "port", nodePort, "err", err)
+189c189
+< 		log.Warn("Wallet RPC port seems unreachable", "server", client.server, "port", rpcPort, "err", err)
+---
+> 		log.Warn(fmt.Sprintf("Wallet RPC port seems unreachable"), "server", client.server, "port", rpcPort, "err", err)
+diff -r l2geth/cmd/puppeth/testdata/stureby_aleth.json ../go-ethereum/cmd/puppeth/testdata/stureby_aleth.json
+14c14
+<     "minGasLimit": "0x3d0900",
+---
+>     "minGasLimit": "0x1388",
+diff -r l2geth/cmd/puppeth/testdata/stureby_parity.json ../go-ethereum/cmd/puppeth/testdata/stureby_parity.json
+27c27
+<     "minGasLimit": "0x3d0900",
+---
+>     "minGasLimit": "0x1388",
+31c31
+<     "maxCodeSize": "0x258000",
+---
+>     "maxCodeSize": "0x6000",
+diff -r l2geth/cmd/utils/flags.go ../go-ethereum/cmd/utils/flags.go
+63d62
+< 	"github.com/ethereum/go-ethereum/rollup"
+146,147d144
+< 
+< 		EnvVar: "DATADIR",
+160,161d156
+< 
+< 		EnvVar: "NO_USB",
+172,179d166
+< 
+< 		EnvVar: "NETWORK_ID",
+< 	}
+< 	ChainIdFlag = cli.Uint64Flag{
+< 		Name:   "chainid",
+< 		Usage:  "Chain ID identifier",
+< 		Value:  420,
+< 		EnvVar: "CHAIN_ID",
+196,197d182
+< 
+< 		EnvVar: "DEV",
+242,243d226
+< 
+< 		EnvVar: "GCMODE",
+395,396d377
+< 
+< 		EnvVar: "CACHE",
+440,441d420
+< 
+< 		EnvVar: "TARGET_GAS_LIMIT",
+447,448d425
+< 
+< 		EnvVar: "TARGET_GAS_LIMIT",
+454,455d430
+< 
+< 		EnvVar: "TARGET_GAS_LIMIT",
+460,462c435
+< 		Value: big.NewInt(0),
+< 
+< 		EnvVar: "GASPRICE",
+---
+> 		Value: eth.DefaultConfig.Miner.GasPrice,
+467,469c440
+< 		Value: big.NewInt(0),
+< 
+< 		EnvVar: "GASPRICE",
+---
+> 		Value: eth.DefaultConfig.Miner.GasPrice,
+474,476c445
+< 
+< 		Value:  "0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf",
+< 		EnvVar: "ETHERBASE",
+---
+> 		Value: "0",
+480a450
+> 		Value: "0",
+544,545d513
+< 
+< 		EnvVar: "IPC_DISABLE",
+554,555d521
+< 
+< 		EnvVar: "RPC_ENABLE",
+561,562d526
+< 
+< 		EnvVar: "RPC_ADDR",
+568,569d531
+< 
+< 		EnvVar: "RPC_PORT",
+575,576d536
+< 
+< 		EnvVar: "RPC_CORS_DOMAIN",
+582,583d541
+< 
+< 		EnvVar: "RPC_VHOSTS",
+589,590d546
+< 
+< 		EnvVar: "RPC_API",
+595,596d550
+< 
+< 		EnvVar: "WS",
+602,603d555
+< 
+< 		EnvVar: "WS_ADDR",
+609,610d560
+< 
+< 		EnvVar: "WS_PORT",
+616,617d565
+< 
+< 		EnvVar: "WS_API",
+623,624d570
+< 
+< 		EnvVar: "WS_ORIGINS",
+706,707d651
+< 
+< 		EnvVar: "NO_DISCOVER",
+759,760d702
+< 
+< 		EnvVar: "METRICS_ENABLE",
+810,909d751
+< 	Eth1SyncServiceEnable = cli.BoolFlag{
+< 		Name:   "eth1.syncservice",
+< 		Usage:  "Enable the sync service",
+< 		EnvVar: "ETH1_SYNC_SERVICE_ENABLE",
+< 	}
+< 	Eth1CanonicalTransactionChainDeployHeightFlag = cli.StringFlag{
+< 		Name:   "eth1.ctcdeploymentheight",
+< 		Usage:  "Deployment of the canonical transaction chain",
+< 		EnvVar: "ETH1_CTC_DEPLOYMENT_HEIGHT",
+< 	}
+< 	Eth1L1CrossDomainMessengerAddressFlag = cli.StringFlag{
+< 		Name:   "eth1.l1crossdomainmessengeraddress",
+< 		Usage:  "Deployment address of the L1 cross domain messenger",
+< 		Value:  "0x0000000000000000000000000000000000000000",
+< 		EnvVar: "ETH1_L1_CROSS_DOMAIN_MESSENGER_ADDRESS",
+< 	}
+< 	Eth1L1FeeWalletAddressFlag = cli.StringFlag{
+< 		Name:   "eth1.l1feewalletaddress",
+< 		Usage:  "Address of the L1 wallet that will collect fees",
+< 		Value:  "0x0000000000000000000000000000000000000000",
+< 		EnvVar: "ETH1_L1_FEE_WALLET_ADDRESS",
+< 	}
+< 	Eth1StandardBridgeAddressFlag = cli.StringFlag{
+< 		Name:   "eth1.l1standardbridgeaddress",
+< 		Usage:  "Deployment address of the Standard Bridge",
+< 		Value:  "0x0000000000000000000000000000000000000000",
+< 		EnvVar: "ETH1_L1_STANDARD_BRIDGE_ADDRESS",
+< 	}
+< 	Eth1ChainIdFlag = cli.Uint64Flag{
+< 		Name:   "eth1.chainid",
+< 		Usage:  "Network identifier (integer, 1=Frontier, 2=Morden (disused), 3=Ropsten, 4=Rinkeby)",
+< 		EnvVar: "ETH1_CHAINID",
+< 	}
+< 	RollupClientHttpFlag = cli.StringFlag{
+< 		Name:   "rollup.clienthttp",
+< 		Usage:  "HTTP endpoint for the rollup client",
+< 		Value:  "http://localhost:7878",
+< 		EnvVar: "ROLLUP_CLIENT_HTTP",
+< 	}
+< 	RollupPollIntervalFlag = cli.DurationFlag{
+< 		Name:   "rollup.pollinterval",
+< 		Usage:  "Interval for polling with the rollup http client",
+< 		Value:  time.Second * 10,
+< 		EnvVar: "ROLLUP_POLL_INTERVAL_FLAG",
+< 	}
+< 	RollupTimstampRefreshFlag = cli.DurationFlag{
+< 		Name:   "rollup.timestamprefresh",
+< 		Usage:  "Interval for refreshing the timestamp",
+< 		Value:  time.Minute * 3,
+< 		EnvVar: "ROLLUP_TIMESTAMP_REFRESH",
+< 	}
+< 	RollupBackendFlag = cli.StringFlag{
+< 		Name:   "rollup.backend",
+< 		Usage:  "Sync backend for verifiers (\"l1\" or \"l2\"), defaults to l1",
+< 		Value:  "l1",
+< 		EnvVar: "ROLLUP_BACKEND",
+< 	}
+< 	RollupEnableVerifierFlag = cli.BoolFlag{
+< 		Name:   "rollup.verifier",
+< 		Usage:  "Enable the verifier",
+< 		EnvVar: "ROLLUP_VERIFIER_ENABLE",
+< 	}
+< 	RollupAddressManagerOwnerAddressFlag = cli.StringFlag{
+< 		Name:   "rollup.addressmanagerowneraddress",
+< 		Usage:  "Owner address of the address manager",
+< 		Value:  "0x0000000000000000000000000000000000000000",
+< 		EnvVar: "ROLLUP_ADDRESS_MANAGER_OWNER_ADDRESS",
+< 	}
+< 	RollupStateDumpPathFlag = cli.StringFlag{
+< 		Name:   "rollup.statedumppath",
+< 		Usage:  "Path to the state dump",
+< 		Value:  eth.DefaultConfig.Rollup.StateDumpPath,
+< 		EnvVar: "ROLLUP_STATE_DUMP_PATH",
+< 	}
+< 	RollupMaxCalldataSizeFlag = cli.IntFlag{
+< 		Name:   "rollup.maxcalldatasize",
+< 		Usage:  "Maximum allowed calldata size for Queue Origin Sequencer Txs",
+< 		Value:  eth.DefaultConfig.Rollup.MaxCallDataSize,
+< 		EnvVar: "ROLLUP_MAX_CALLDATA_SIZE",
+< 	}
+< 	RollupEnforceFeesFlag = cli.BoolFlag{
+< 		Name:   "rollup.enforcefeesflag",
+< 		Usage:  "Disable transactions with 0 gas price",
+< 		EnvVar: "ROLLUP_ENFORCE_FEES",
+< 	}
+< 	RollupFeeThresholdDownFlag = cli.Float64Flag{
+< 		Name:   "rollup.feethresholddown",
+< 		Usage:  "Allow txs with fees below the current fee up to this amount, must be < 1",
+< 		EnvVar: "ROLLUP_FEE_THRESHOLD_DOWN",
+< 	}
+< 	RollupFeeThresholdUpFlag = cli.Float64Flag{
+< 		Name:   "rollup.feethresholdup",
+< 		Usage:  "Allow txs with fees above the current fee up to this amount, must be > 1",
+< 		EnvVar: "ROLLUP_FEE_THRESHOLD_UP",
+< 	}
+< 	GasPriceOracleOwnerAddress = cli.StringFlag{
+< 		Name:   "rollup.gaspriceoracleowneraddress",
+< 		Usage:  "Owner of the OVM_GasPriceOracle",
+< 		EnvVar: "ROLLUP_GAS_PRICE_ORACLE_OWNER_ADDRESS",
+< 	}
+1133,1212d974
+< // setEth1 configures the sync service
+< func setEth1(ctx *cli.Context, cfg *rollup.Config) {
+< 	if ctx.GlobalIsSet(Eth1CanonicalTransactionChainDeployHeightFlag.Name) {
+< 		height := ctx.GlobalUint64(Eth1CanonicalTransactionChainDeployHeightFlag.Name)
+< 		cfg.CanonicalTransactionChainDeployHeight = new(big.Int).SetUint64(height)
+< 	}
+< 	if ctx.GlobalIsSet(Eth1L1CrossDomainMessengerAddressFlag.Name) {
+< 		addr := ctx.GlobalString(Eth1L1CrossDomainMessengerAddressFlag.Name)
+< 		cfg.L1CrossDomainMessengerAddress = common.HexToAddress(addr)
+< 	}
+< 	if ctx.GlobalIsSet(Eth1L1FeeWalletAddressFlag.Name) {
+< 		addr := ctx.GlobalString(Eth1L1FeeWalletAddressFlag.Name)
+< 		cfg.L1FeeWalletAddress = common.HexToAddress(addr)
+< 	}
+< 	if ctx.GlobalIsSet(Eth1StandardBridgeAddressFlag.Name) {
+< 		addr := ctx.GlobalString(Eth1StandardBridgeAddressFlag.Name)
+< 		cfg.L1StandardBridgeAddress = common.HexToAddress(addr)
+< 	}
+< 	if ctx.GlobalIsSet(Eth1ChainIdFlag.Name) {
+< 		cfg.Eth1ChainId = ctx.GlobalUint64(Eth1ChainIdFlag.Name)
+< 	}
+< 	if ctx.GlobalIsSet(Eth1SyncServiceEnable.Name) {
+< 		cfg.Eth1SyncServiceEnable = ctx.GlobalBool(Eth1SyncServiceEnable.Name)
+< 	}
+< 	if ctx.GlobalIsSet(MinerGasTargetFlag.Name) {
+< 		cfg.GasLimit = ctx.GlobalUint64(MinerGasTargetFlag.Name)
+< 	}
+< }
+< 
+< func setRollup(ctx *cli.Context, cfg *rollup.Config) {
+< 	if ctx.GlobalIsSet(RollupAddressManagerOwnerAddressFlag.Name) {
+< 		addr := ctx.GlobalString(RollupAddressManagerOwnerAddressFlag.Name)
+< 		cfg.AddressManagerOwnerAddress = common.HexToAddress(addr)
+< 	}
+< 	if ctx.GlobalIsSet(RollupEnableVerifierFlag.Name) {
+< 		cfg.IsVerifier = true
+< 	}
+< 	if ctx.GlobalIsSet(RollupStateDumpPathFlag.Name) {
+< 		cfg.StateDumpPath = ctx.GlobalString(RollupStateDumpPathFlag.Name)
+< 	} else {
+< 		cfg.StateDumpPath = eth.DefaultConfig.Rollup.StateDumpPath
+< 	}
+< 	if ctx.GlobalIsSet(RollupMaxCalldataSizeFlag.Name) {
+< 		cfg.MaxCallDataSize = ctx.GlobalInt(RollupMaxCalldataSizeFlag.Name)
+< 	}
+< 	if ctx.GlobalIsSet(RollupClientHttpFlag.Name) {
+< 		cfg.RollupClientHttp = ctx.GlobalString(RollupClientHttpFlag.Name)
+< 	}
+< 	if ctx.GlobalIsSet(RollupPollIntervalFlag.Name) {
+< 		cfg.PollInterval = ctx.GlobalDuration(RollupPollIntervalFlag.Name)
+< 	}
+< 	if ctx.GlobalIsSet(RollupTimstampRefreshFlag.Name) {
+< 		cfg.TimestampRefreshThreshold = ctx.GlobalDuration(RollupTimstampRefreshFlag.Name)
+< 	}
+< 	if ctx.GlobalIsSet(GasPriceOracleOwnerAddress.Name) {
+< 		addr := ctx.GlobalString(GasPriceOracleOwnerAddress.Name)
+< 		cfg.GasPriceOracleOwnerAddress = common.HexToAddress(addr)
+< 	}
+< 	if ctx.GlobalIsSet(RollupBackendFlag.Name) {
+< 		val := ctx.GlobalString(RollupBackendFlag.Name)
+< 		backend, err := rollup.NewBackend(val)
+< 		if err != nil {
+< 			log.Error("Configured with unknown sync backend, defaulting to l1", "backend", val)
+< 			backend, _ = rollup.NewBackend("l1")
+< 		}
+< 		cfg.Backend = backend
+< 	}
+< 	if ctx.GlobalIsSet(RollupEnforceFeesFlag.Name) {
+< 		cfg.EnforceFees = true
+< 	}
+< 	if ctx.GlobalIsSet(RollupFeeThresholdDownFlag.Name) {
+< 		val := ctx.GlobalFloat64(RollupFeeThresholdDownFlag.Name)
+< 		cfg.FeeThresholdDown = new(big.Float).SetFloat64(val)
+< 	}
+< 	if ctx.GlobalIsSet(RollupFeeThresholdUpFlag.Name) {
+< 		val := ctx.GlobalFloat64(RollupFeeThresholdUpFlag.Name)
+< 		cfg.FeeThresholdUp = new(big.Float).SetFloat64(val)
+< 	}
+< }
+< 
+1670,1671d1431
+< 	setEth1(ctx, &cfg.Rollup)
+< 	setRollup(ctx, &cfg.Rollup)
+1760,1777c1520
+< 		// Allow for a configurable chain id
+< 		var chainID *big.Int
+< 		if ctx.GlobalIsSet(ChainIdFlag.Name) {
+< 			id := ctx.GlobalUint64(ChainIdFlag.Name)
+< 			chainID = new(big.Int).SetUint64(id)
+< 		}
+< 
+< 		gasLimit := cfg.Rollup.GasLimit
+< 		if gasLimit == 0 {
+< 			gasLimit = params.GenesisGasLimit
+< 		}
+< 		xdomainAddress := cfg.Rollup.L1CrossDomainMessengerAddress
+< 		l1FeeWalletAddress := cfg.Rollup.L1FeeWalletAddress
+< 		addrManagerOwnerAddress := cfg.Rollup.AddressManagerOwnerAddress
+< 		l1StandardBridgeAddress := cfg.Rollup.L1StandardBridgeAddress
+< 		gpoOwnerAddress := cfg.Rollup.GasPriceOracleOwnerAddress
+< 		stateDumpPath := cfg.Rollup.StateDumpPath
+< 		cfg.Genesis = core.DeveloperGenesisBlock(uint64(ctx.GlobalInt(DeveloperPeriodFlag.Name)), developer.Address, xdomainAddress, l1StandardBridgeAddress, addrManagerOwnerAddress, gpoOwnerAddress, l1FeeWalletAddress, stateDumpPath, chainID, gasLimit)
+---
+> 		cfg.Genesis = core.DeveloperGenesisBlock(uint64(ctx.GlobalInt(DeveloperPeriodFlag.Name)), developer.Address)
+Only in l2geth/common: varbytes.go
+diff -r l2geth/consensus/clique/clique.go ../go-ethereum/consensus/clique/clique.go
+36d35
+< 	"github.com/ethereum/go-ethereum/core/vm"
+252,256c251,253
+< 	if vm.UsingOVM {
+< 		// Don't waste time checking blocks from the future
+< 		if header.Time > uint64(time.Now().Unix()) {
+< 			return consensus.ErrFutureBlock
+< 		}
+---
+> 	// Don't waste time checking blocks from the future
+> 	if header.Time > uint64(time.Now().Unix()) {
+> 		return consensus.ErrFutureBlock
+327,330c324,326
+< 	// [REMOVED] to account for timestamp changes
+< 	//if parent.Time+c.config.Period > header.Time {
+< 	//	return ErrInvalidTimestamp
+< 	//}
+---
+> 	if parent.Time+c.config.Period > header.Time {
+> 		return ErrInvalidTimestamp
+> 	}
+550,554c546,549
+< 	// [REMOVED] so we can control timestamps
+< 	//header.Time = parent.Time + c.config.Period
+< 	//if header.Time < uint64(time.Now().Unix()) {
+< 	//	header.Time = uint64(time.Now().Unix())
+< 	//}
+---
+> 	header.Time = parent.Time + c.config.Period
+> 	if header.Time < uint64(time.Now().Unix()) {
+> 		header.Time = uint64(time.Now().Unix())
+> 	}
+633,635d627
+< 	}
+< 	if vm.UsingOVM {
+< 		delay = 0
+diff -r l2geth/consensus/ethash/consensus.go ../go-ethereum/consensus/ethash/consensus.go
+257c257
+< 	if header.Time < parent.Time {
+---
+> 	if header.Time <= parent.Time {
+276,277d275
+< 	// TODO: UNCOMMENT THIS CHECK WHEN WE UNDERSTAND OUR GAS LIMIT REQUIREMENTS
+< 
+279,287c277,281
+< 	//diff := int64(parent.GasLimit) - int64(header.GasLimit)
+< 	//if diff < 0 {
+< 	//	diff *= -1
+< 	//}
+< 
+< 	//limit := parent.GasLimit / params.GasLimitBoundDivisor
+< 	//if uint64(diff) >= limit || header.GasLimit < params.MinGasLimit {
+< 	//	return fmt.Errorf("invalid gas limit: have %d, want %d += %d", header.GasLimit, parent.GasLimit, limit)
+< 	//}
+---
+> 	diff := int64(parent.GasLimit) - int64(header.GasLimit)
+> 	if diff < 0 {
+> 		diff *= -1
+> 	}
+> 	limit := parent.GasLimit / params.GasLimitBoundDivisor
+288a283,285
+> 	if uint64(diff) >= limit || header.GasLimit < params.MinGasLimit {
+> 		return fmt.Errorf("invalid gas limit: have %d, want %d += %d", header.GasLimit, parent.GasLimit, limit)
+> 	}
+diff -r l2geth/console/console_test.go ../go-ethereum/console/console_test.go
+36d35
+< 	"github.com/ethereum/go-ethereum/rollup"
+101c100
+< 		Genesis: core.DeveloperGenesisBlock(15, common.Address{}, common.Address{}, common.Address{}, common.Address{}, common.Address{}, common.Address{}, "", nil, 12000000),
+---
+> 		Genesis: core.DeveloperGenesisBlock(15, common.Address{}),
+108d106
+< 		Rollup: rollup.Config{},
+diff -r l2geth/contracts/checkpointoracle/oracle_test.go ../go-ethereum/contracts/checkpointoracle/oracle_test.go
+168,169d167
+< 	t.Skip("OVM breaks this with invalid number of events, probably because the CheckpointOracle must be transpiled to function properly.")
+< 
+diff -r l2geth/core/blockchain.go ../go-ethereum/core/blockchain.go
+504,508d503
+< // SetCurrentBlock is used for testing
+< func (bc *BlockChain) SetCurrentBlock(block *types.Block) {
+< 	bc.currentBlock.Store(block)
+< }
+< 
+872d866
+< 
+1208,1210d1201
+< 			for _, tx := range block.Transactions() {
+< 				rawdb.WriteTransactionMeta(batch, block.NumberU64(), tx.GetMeta())
+< 			}
+1333,1335d1323
+< 	for _, tx := range block.Transactions() {
+< 		rawdb.WriteTransactionMeta(blockBatch, block.NumberU64(), tx.GetMeta())
+< 	}
+diff -r l2geth/core/blockchain_test.go ../go-ethereum/core/blockchain_test.go
+984,985d983
+< 	t.Skip("OVM Genesis breaks this test because it adds the OVM contracts to the state.")
+< 
+1424,1425d1421
+< 	t.Skip("OVM breaks with `expected account to exist`, probably based on some unknown transaction failure.")
+< 
+2349c2345,2346
+< 		tx, _ := types.SignTx(types.NewTransaction(0, aa, big.NewInt(0), 50000, big.NewInt(1), nil), types.HomesteadSigner{}, key)
+---
+> 		tx, _ := types.SignTx(types.NewTransaction(0, aa,
+> 			big.NewInt(0), 50000, big.NewInt(1), nil), types.HomesteadSigner{}, key)
+2352c2349,2350
+< 		tx, _ = types.SignTx(types.NewTransaction(1, bb, big.NewInt(0), 100000, big.NewInt(1), nil), types.HomesteadSigner{}, key)
+---
+> 		tx, _ = types.SignTx(types.NewTransaction(1, bb,
+> 			big.NewInt(0), 100000, big.NewInt(1), nil), types.HomesteadSigner{}, key)
+diff -r l2geth/core/chain_makers_test.go ../go-ethereum/core/chain_makers_test.go
+32,34d31
+< 	fmt.Println("OVM breaks this... SKIPPING: Example Generate Chain fails because of the genesis.")
+< 	return
+< 
+98,102c95,99
+< 	// 	// Output:
+< 	// 	// last block: #5
+< 	// 	// balance of addr1: 989000
+< 	// 	// balance of addr2: 10000
+< 	// 	// balance of addr3: 19687500000000001000
+---
+> 	// Output:
+> 	// last block: #5
+> 	// balance of addr1: 989000
+> 	// balance of addr2: 10000
+> 	// balance of addr3: 19687500000000001000
+diff -r l2geth/core/genesis.go ../go-ethereum/core/genesis.go
+25d24
+< 	"io/ioutil"
+27,28d25
+< 	"net/http"
+< 	"sort"
+37d33
+< 	"github.com/ethereum/go-ethereum/core/vm"
+43d38
+< 	"github.com/ethereum/go-ethereum/rollup/dump"
+69,77d63
+< 
+< 	// OVM Specific, used to initialize the l1XDomainMessengerAddress
+< 	// in the genesis state
+< 	L1FeeWalletAddress            common.Address `json:"-"`
+< 	L1CrossDomainMessengerAddress common.Address `json:"-"`
+< 	AddressManagerOwnerAddress    common.Address `json:"-"`
+< 	GasPriceOracleOwnerAddress    common.Address `json:"-"`
+< 	L1StandardBridgeAddress       common.Address `json:"-"`
+< 	ChainID                       *big.Int       `json:"-"`
+270,341d255
+< // ApplyOvmStateToState applies the initial OVM state to a state object.
+< func ApplyOvmStateToState(statedb *state.StateDB, stateDump *dump.OvmDump, l1XDomainMessengerAddress, l1StandardBridgeAddress, addrManagerOwnerAddress, gpoOwnerAddress, l1FeeWalletAddress common.Address, chainID *big.Int, gasLimit uint64) {
+< 	if len(stateDump.Accounts) == 0 {
+< 		return
+< 	}
+< 	acctKeys := make([]string, len(stateDump.Accounts))
+< 	i := 0
+< 	for k := range stateDump.Accounts {
+< 		acctKeys[i] = k
+< 		i++
+< 	}
+< 	sort.Strings(acctKeys)
+< 	for _, acctKey := range acctKeys {
+< 		account := stateDump.Accounts[acctKey]
+< 		statedb.SetCode(account.Address, common.FromHex(account.Code))
+< 		statedb.SetNonce(account.Address, account.Nonce)
+< 		for key, val := range account.Storage {
+< 			statedb.SetState(account.Address, key, common.HexToHash(val))
+< 		}
+< 	}
+< 	AddressManager, ok := stateDump.Accounts["Lib_AddressManager"]
+< 	if ok {
+< 		// Set the owner of the address manager
+< 		ownerSlot := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000000")
+< 		ownerValue := common.BytesToHash(addrManagerOwnerAddress.Bytes())
+< 		statedb.SetState(AddressManager.Address, ownerSlot, ownerValue)
+< 		log.Info("Setting AddressManager Owner", "owner", addrManagerOwnerAddress.Hex())
+< 		// Set the storage slot associated with the cross domain messenger
+< 		// to the cross domain messenger address.
+< 		log.Info("Setting OVM_L1CrossDomainMessenger in AddressManager", "address", l1XDomainMessengerAddress.Hex())
+< 		l1MessengerSlot := common.HexToHash("0x515216935740e67dfdda5cf8e248ea32b3277787818ab59153061ac875c9385e")
+< 		l1MessengerValue := common.BytesToHash(l1XDomainMessengerAddress.Bytes())
+< 		statedb.SetState(AddressManager.Address, l1MessengerSlot, l1MessengerValue)
+< 	}
+< 	OVM_L2StandardBridge, ok := stateDump.Accounts["OVM_L2StandardBridge"]
+< 	if ok {
+< 		log.Info("Setting OVM_L1StandardBridge in OVM_L2StandardBridge", "address", l1StandardBridgeAddress.Hex())
+< 		// Set the gateway of OVM_L2StandardBridge at new dump
+< 		l1BridgeSlot := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001")
+< 		l1BridgeValue := common.BytesToHash(l1StandardBridgeAddress.Bytes())
+< 		statedb.SetState(OVM_L2StandardBridge.Address, l1BridgeSlot, l1BridgeValue)
+< 	}
+< 	ExecutionManager, ok := stateDump.Accounts["OVM_ExecutionManager"]
+< 	if ok {
+< 		if chainID == nil {
+< 			chainID = new(big.Int)
+< 		}
+< 		log.Info("Setting ovmCHAINID in ExecutionManager", "chain-id", chainID.Uint64())
+< 		chainIdSlot := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000007")
+< 		chainIdValue := common.BytesToHash(chainID.Bytes())
+< 		statedb.SetState(ExecutionManager.Address, chainIdSlot, chainIdValue)
+< 		log.Info("Setting maxTransactionGasLimit in ExecutionManager", "gas-limit", gasLimit)
+< 		maxTxGasLimitSlot := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000004")
+< 		maxTxGasLimitValue := common.BytesToHash(new(big.Int).SetUint64(gasLimit).Bytes())
+< 		statedb.SetState(ExecutionManager.Address, maxTxGasLimitSlot, maxTxGasLimitValue)
+< 	}
+< 	OVM_SequencerFeeVault, ok := stateDump.Accounts["OVM_SequencerFeeVault"]
+< 	if ok {
+< 		log.Info("Setting l1FeeWallet in OVM_SequencerFeeVault", "wallet", l1FeeWalletAddress.Hex())
+< 		l1FeeWalletSlot := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000000")
+< 		l1FeeWalletValue := common.BytesToHash(l1FeeWalletAddress.Bytes())
+< 		statedb.SetState(OVM_SequencerFeeVault.Address, l1FeeWalletSlot, l1FeeWalletValue)
+< 		GasPriceOracle, ok := stateDump.Accounts["OVM_GasPriceOracle"]
+< 		if ok {
+< 			ownerSlot := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000000")
+< 			ownerValue := common.BytesToHash(gpoOwnerAddress.Bytes())
+< 			statedb.SetState(GasPriceOracle.Address, ownerSlot, ownerValue)
+< 			log.Info("Setting GasPriceOracle Owner", "owner", gpoOwnerAddress.Hex())
+< 		}
+< 	}
+< }
+< 
+349,354d262
+< 
+< 	if vm.UsingOVM {
+< 		// OVM_ENABLED
+< 		ApplyOvmStateToState(statedb, g.Config.StateDump, g.L1CrossDomainMessengerAddress, g.L1StandardBridgeAddress, g.AddressManagerOwnerAddress, g.GasPriceOracleOwnerAddress, g.L1FeeWalletAddress, g.ChainID, g.GasLimit)
+< 	}
+< 
+479c387
+< func DeveloperGenesisBlock(period uint64, faucet, l1XDomainMessengerAddress common.Address, l1StandardBridgeAddress common.Address, addrManagerOwnerAddress, gpoOwnerAddress, l1FeeWalletAddress common.Address, stateDumpPath string, chainID *big.Int, gasLimit uint64) *Genesis {
+---
+> func DeveloperGenesisBlock(period uint64, faucet common.Address) *Genesis {
+484,517d391
+< 	if chainID != nil {
+< 		config.ChainID = chainID
+< 	}
+< 
+< 	stateDump := dump.OvmDump{}
+< 	if vm.UsingOVM {
+< 		// Fetch the state dump from the state dump path
+< 		if stateDumpPath == "" {
+< 			panic("Must pass state dump path")
+< 		}
+< 		log.Info("Fetching state dump", "path", stateDumpPath)
+< 		err := fetchStateDump(stateDumpPath, &stateDump)
+< 		if err != nil {
+< 			panic(fmt.Sprintf("Cannot fetch state dump: %s", err))
+< 		}
+< 		_, ok := stateDump.Accounts["Lib_AddressManager"]
+< 		if !ok {
+< 			panic("Lib_AddressManager not in state dump")
+< 		}
+< 		_, ok = stateDump.Accounts["OVM_StateManager"]
+< 		if !ok {
+< 			panic("OVM_StateManager not in state dump")
+< 		}
+< 		_, ok = stateDump.Accounts["OVM_ExecutionManager"]
+< 		if !ok {
+< 			panic("OVM_ExecutionManager not in state dump")
+< 		}
+< 		_, ok = stateDump.Accounts["OVM_SequencerEntrypoint"]
+< 		if !ok {
+< 			panic("OVM_SequencerEntrypoint not in state dump")
+< 		}
+< 	}
+< 	config.StateDump = &stateDump
+< 
+522c396
+< 		GasLimit:   gasLimit,
+---
+> 		GasLimit:   6283185,
+532a407
+> 			faucet:                           {Balance: new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 256), big.NewInt(9))},
+534,539d408
+< 		L1CrossDomainMessengerAddress: l1XDomainMessengerAddress,
+< 		L1FeeWalletAddress:            l1FeeWalletAddress,
+< 		AddressManagerOwnerAddress:    addrManagerOwnerAddress,
+< 		GasPriceOracleOwnerAddress:    gpoOwnerAddress,
+< 		L1StandardBridgeAddress:       l1StandardBridgeAddress,
+< 		ChainID:                       config.ChainID,
+553,575d421
+< }
+< 
+< func fetchStateDump(path string, stateDump *dump.OvmDump) error {
+< 	if stateDump == nil {
+< 		return errors.New("Unable to fetch state dump")
+< 	}
+< 	resp, err := http.Get(path)
+< 	if err != nil {
+< 		return fmt.Errorf("Unable to GET state dump: %w", err)
+< 	}
+< 	if resp.StatusCode >= 400 {
+< 		return errors.New("State dump not found")
+< 	}
+< 	defer resp.Body.Close()
+< 	body, err := ioutil.ReadAll(resp.Body)
+< 	if err != nil {
+< 		return fmt.Errorf("Unable to read response body: %w", err)
+< 	}
+< 	err = json.Unmarshal(body, stateDump)
+< 	if err != nil {
+< 		return fmt.Errorf("Unable to unmarshal response body: %w", err)
+< 	}
+< 	return nil
+diff -r l2geth/core/genesis_test.go ../go-ethereum/core/genesis_test.go
+34,35d33
+< 	t.Skip("OVM breaks this test because it adds the OVM contracts to the Genesis state.")
+< 
+47,48d44
+< 	t.Skip("OVM Genesis breaks this test because it adds the OVM contracts to the state.")
+< 
+diff -r l2geth/core/rawdb/accessors_chain.go ../go-ethereum/core/rawdb/accessors_chain.go
+341,387d340
+< // ReadTransactionMeta returns the transaction metadata associated with a
+< // transaction hash.
+< func ReadTransactionMeta(db ethdb.Reader, number uint64) *types.TransactionMeta {
+< 	data := ReadTransactionMetaRaw(db, number)
+< 	if len(data) == 0 {
+< 		return nil
+< 	}
+< 
+< 	meta, err := types.TxMetaDecode(data)
+< 	if err != nil {
+< 		log.Error("Invalid raw tx meta ", "number", number, "err", err)
+< 		return nil
+< 	}
+< 
+< 	return meta
+< }
+< 
+< // ReadTransactionMetaRaw returns the raw transaction metadata associated with a
+< // transaction hash.
+< func ReadTransactionMetaRaw(db ethdb.Reader, number uint64) []byte {
+< 	data, _ := db.Get(txMetaKey(number))
+< 	if len(data) > 0 {
+< 		return data
+< 	}
+< 	return nil
+< }
+< 
+< // WriteTransactionMeta writes the TransactionMeta to disk by hash.
+< func WriteTransactionMeta(db ethdb.KeyValueWriter, number uint64, meta *types.TransactionMeta) {
+< 	data := types.TxMetaEncode(meta)
+< 	WriteTransactionMetaRaw(db, number, data)
+< }
+< 
+< // WriteTransactionMetaRaw writes the raw transaction metadata bytes to disk.
+< func WriteTransactionMetaRaw(db ethdb.KeyValueWriter, number uint64, data []byte) {
+< 	if err := db.Put(txMetaKey(number), data); err != nil {
+< 		log.Crit("Failed to store transaction meta", "err", err)
+< 	}
+< }
+< 
+< // DeleteTransactionMeta removes the transaction metadata associated with a hash
+< func DeleteTransactionMeta(db ethdb.KeyValueWriter, number uint64) {
+< 	if err := db.Delete(txMetaKey(number)); err != nil {
+< 		log.Crit("Failed to delete transaction meta", "err", err)
+< 	}
+< }
+< 
+579,582d531
+< 	}
+< 	for i := 0; i < len(body.Transactions); i++ {
+< 		meta := ReadTransactionMeta(db, header.Number.Uint64())
+< 		body.Transactions[i].SetTransactionMeta(meta)
+diff -r l2geth/core/rawdb/accessors_chain_test.go ../go-ethereum/core/rawdb/accessors_chain_test.go
+427,477d426
+< 
+< func TestBlockMetaStorage(t *testing.T) {
+< 	db := NewMemoryDatabase()
+< 
+< 	index1 := uint64(1)
+< 	tx1 := types.NewTransaction(1, common.HexToAddress("0x1"), big.NewInt(1), 1, big.NewInt(1), nil)
+< 	tx1Meta := types.NewTransactionMeta(nil, 0, nil, types.QueueOriginSequencer, &index1, nil, nil)
+< 	tx1.SetTransactionMeta(tx1Meta)
+< 
+< 	WriteTransactionMeta(db, index1, tx1.GetMeta())
+< 	meta := ReadTransactionMeta(db, index1)
+< 
+< 	if meta.L1MessageSender != nil {
+< 		t.Fatalf("Could not recover L1MessageSender")
+< 	}
+< 	if meta.L1BlockNumber != nil {
+< 		t.Fatalf("Could not recover L1BlockNumber")
+< 	}
+< 	if meta.Index == nil {
+< 		t.Fatalf("Could not recover index")
+< 	}
+< 	if *meta.Index != 1 {
+< 		t.Fatalf("Could not recover index")
+< 	}
+< 
+< 	DeleteTransactionMeta(db, index1)
+< 	postDelete := ReadTransactionMeta(db, index1)
+< 
+< 	if postDelete != nil {
+< 		t.Fatalf("Delete did not work")
+< 	}
+< 
+< 	addr := common.HexToAddress("095e7baea6a6c7c4c2dfeb977efac326af552d87")
+< 	l1BlockNumber := big.NewInt(777)
+< 
+< 	index2 := uint64(2)
+< 	tx2 := types.NewTransaction(2, common.HexToAddress("0x02"), big.NewInt(2), 2, big.NewInt(2), nil)
+< 	tx2Meta := types.NewTransactionMeta(l1BlockNumber, 0, &addr, types.QueueOriginSequencer, nil, nil, nil)
+< 	tx2.SetTransactionMeta(tx2Meta)
+< 
+< 	WriteTransactionMeta(db, index2, tx2.GetMeta())
+< 	meta2 := ReadTransactionMeta(db, index2)
+< 
+< 	if !bytes.Equal(meta2.L1MessageSender.Bytes(), addr.Bytes()) {
+< 		t.Fatalf("Could not recover L1MessageSender")
+< 	}
+< 
+< 	if meta2.L1BlockNumber.Cmp(l1BlockNumber) != 0 {
+< 		t.Fatalf("Could not recover L1BlockNumber")
+< 	}
+< }
+diff -r l2geth/core/rawdb/accessors_indexes.go ../go-ethereum/core/rawdb/accessors_indexes.go
+89,93d88
+< 			txMeta := ReadTransactionMeta(db, *blockNumber)
+< 			if txMeta != nil {
+< 				tx.SetTransactionMeta(txMeta)
+< 			}
+< 
+diff -r l2geth/core/rawdb/accessors_indexes_test.go ../go-ethereum/core/rawdb/accessors_indexes_test.go
+69,74d68
+< 			sender1 := common.BytesToAddress([]byte{0x44})
+< 			sender2 := common.BytesToAddress([]byte{0x55})
+< 
+< 			l1BlockNumber1 := big.NewInt(1)
+< 			l1BlockNumber2 := big.NewInt(2)
+< 
+76,78d69
+< 			tx1Meta := types.NewTransactionMeta(l1BlockNumber1, 0, &sender1, types.QueueOriginSequencer, nil, nil, nil)
+< 			tx1.SetTransactionMeta(tx1Meta)
+< 
+80,82d70
+< 			tx2Meta := types.NewTransactionMeta(l1BlockNumber2, 0, &sender2, types.QueueOriginSequencer, nil, nil, nil)
+< 			tx2.SetTransactionMeta(tx2Meta)
+< 
+84,86d71
+< 			tx3Meta := types.NewTransactionMeta(l1BlockNumber1, 0, nil, types.QueueOriginSequencer, nil, nil, nil)
+< 			tx3.SetTransactionMeta(tx3Meta)
+< 
+diff -r l2geth/core/rawdb/freezer.go ../go-ethereum/core/rawdb/freezer.go
+272a273
+> 			log.Debug("Current full block not old enough", "number", *number, "hash", hash, "delay", params.ImmutabilityThreshold)
+Only in l2geth/core/rawdb: rollup_indexes.go
+Only in l2geth/core/rawdb: rollup_indexes_test.go
+diff -r l2geth/core/rawdb/schema.go ../go-ethereum/core/rawdb/schema.go
+56,67d55
+< 	// Optimism specific
+< 	txMetaPrefix = []byte("x") // txMetaPrefix + hash -> transaction metadata
+< 
+< 	// headIndexKey tracks the last processed ctc index
+< 	headIndexKey = []byte("LastIndex")
+< 	// headQueueIndexKey tracks th last processed queue index
+< 	headQueueIndexKey = []byte("LastQueueIndex")
+< 	// headVerifiedIndexKey tracks the latest verified index
+< 	headVerifiedIndexKey = []byte("LastVerifiedIndex")
+< 	// headBatchKey tracks the latest processed batch
+< 	headBatchKey = []byte("LastBatch")
+< 
+158,162d145
+< }
+< 
+< // txMetaKey = txMetaPrefix + num (uint64 big endian)
+< func txMetaKey(number uint64) []byte {
+< 	return append(txMetaPrefix, encodeBlockNumber(number)...)
+diff -r l2geth/core/state/statedb.go ../go-ethereum/core/state/statedb.go
+34d33
+< 	"golang.org/x/crypto/sha3"
+233,244d231
+< }
+< 
+< func (s *StateDB) GetOVMBalance(addr common.Address) *big.Int {
+< 	eth := common.HexToAddress("0x4200000000000000000000000000000000000006")
+< 	position := big.NewInt(0)
+< 	hasher := sha3.NewLegacyKeccak256()
+< 	hasher.Write(common.LeftPadBytes(addr.Bytes(), 32))
+< 	hasher.Write(common.LeftPadBytes(position.Bytes(), 32))
+< 	digest := hasher.Sum(nil)
+< 	key := common.BytesToHash(digest)
+< 	slot := s.GetState(eth, key)
+< 	return slot.Big()
+diff -r l2geth/core/state_processor.go ../go-ethereum/core/state_processor.go
+95,97d94
+< 	if vm.UsingOVM {
+< 		context.BlockNumber = msg.L1BlockNumber()
+< 	}
+diff -r l2geth/core/state_transition.go ../go-ethereum/core/state_transition.go
+25d24
+< 	"github.com/ethereum/go-ethereum/core/types"
+77,79d75
+< 	L1MessageSender() *common.Address
+< 	L1BlockNumber() *big.Int
+< 	QueueOrigin() types.QueueOrigin
+180,185d175
+< 			if vm.UsingOVM {
+< 				// The nonce never increments for L1ToL2 txs
+< 				if st.msg.QueueOrigin() == types.QueueOriginL1ToL2 {
+< 					return st.buyGas()
+< 				}
+< 			}
+218c208
+< 		// vm errors do not effect consensus and are therefore
+---
+> 		// vm errors do not effect consensus and are therefor
+Only in l2geth/core: state_transition_ovm.go
+diff -r l2geth/core/tx_pool.go ../go-ethereum/core/tx_pool.go
+32d31
+< 	"github.com/ethereum/go-ethereum/core/vm"
+524,527d522
+< func (pool *TxPool) ValidateTx(tx *types.Transaction) error {
+< 	return pool.validateTx(tx, false)
+< }
+< 
+540d534
+< 
+543d536
+< 		log.Debug("exceeded", "tx", tx.Gas(), "pool", pool.currentMaxGas)
+546d538
+< 
+558,565c550,551
+< 	if vm.UsingOVM {
+< 		if pool.currentState.GetNonce(from) != tx.Nonce() {
+< 			return ErrNonceTooLow
+< 		}
+< 	} else {
+< 		if pool.currentState.GetNonce(from) > tx.Nonce() {
+< 			return ErrNonceTooLow
+< 		}
+---
+> 	if pool.currentState.GetNonce(from) > tx.Nonce() {
+> 		return ErrNonceTooLow
+569,584c555,564
+< 	if vm.UsingOVM {
+< 		if pool.currentState.GetOVMBalance(from).Cmp(tx.Cost()) < 0 {
+< 			return ErrInsufficientFunds
+< 		}
+< 	} else {
+< 		if pool.currentState.GetBalance(from).Cmp(tx.Cost()) < 0 {
+< 			return ErrInsufficientFunds
+< 		}
+< 		// Ensure the transaction has more gas than the basic tx fee.
+< 		intrGas, err := IntrinsicGas(tx.Data(), tx.To() == nil, true, pool.istanbul)
+< 		if err != nil {
+< 			return err
+< 		}
+< 		if tx.Gas() < intrGas {
+< 			return ErrIntrinsicGas
+< 		}
+---
+> 	if pool.currentState.GetBalance(from).Cmp(tx.Cost()) < 0 {
+> 		return ErrInsufficientFunds
+> 	}
+> 	// Ensure the transaction has more gas than the basic tx fee.
+> 	intrGas, err := IntrinsicGas(tx.Data(), tx.To() == nil, true, pool.istanbul)
+> 	if err != nil {
+> 		return err
+> 	}
+> 	if tx.Gas() < intrGas {
+> 		return ErrIntrinsicGas
+597d576
+< 	log.Debug("received tx", "gas", tx.Gas(), "gasprice", tx.GasPrice().Uint64())
+605d583
+< 
+diff -r l2geth/core/tx_pool_test.go ../go-ethereum/core/tx_pool_test.go
+860,863c860,861
+< func TestTransactionQueueTimeLimiting(t *testing.T) { testTransactionQueueTimeLimiting(t, false) }
+< func TestTransactionQueueTimeLimitingNoLocals(t *testing.T) {
+< 	testTransactionQueueTimeLimiting(t, true)
+< }
+---
+> func TestTransactionQueueTimeLimiting(t *testing.T)         { testTransactionQueueTimeLimiting(t, false) }
+> func TestTransactionQueueTimeLimitingNoLocals(t *testing.T) { testTransactionQueueTimeLimiting(t, true) }
+Only in l2geth/core/types: gen_tx_meta_json.go
+diff -r l2geth/core/types/transaction.go ../go-ethereum/core/types/transaction.go
+30d29
+< 	"github.com/ethereum/go-ethereum/rollup/fees"
+41d39
+< 	meta TransactionMeta
+88,90d85
+< 
+< 	meta := NewTransactionMeta(nil, 0, nil, QueueOriginSequencer, nil, nil, nil)
+< 
+109,150c104
+< 	return &Transaction{data: d, meta: *meta}
+< }
+< 
+< func (t *Transaction) SetTransactionMeta(meta *TransactionMeta) {
+< 	if meta == nil {
+< 		return
+< 	}
+< 	t.meta = *meta
+< }
+< 
+< func (t *Transaction) GetMeta() *TransactionMeta {
+< 	if &t.meta == nil {
+< 		return nil
+< 	}
+< 	return &t.meta
+< }
+< func (t *Transaction) SetIndex(index uint64) {
+< 	if &t.meta == nil {
+< 		return
+< 	}
+< 	t.meta.Index = &index
+< }
+< 
+< func (t *Transaction) SetL1Timestamp(ts uint64) {
+< 	if &t.meta == nil {
+< 		return
+< 	}
+< 	t.meta.L1Timestamp = ts
+< }
+< 
+< func (t *Transaction) L1Timestamp() uint64 {
+< 	if &t.meta == nil {
+< 		return 0
+< 	}
+< 	return t.meta.L1Timestamp
+< }
+< 
+< func (t *Transaction) SetL1BlockNumber(bn uint64) {
+< 	if &t.meta == nil {
+< 		return
+< 	}
+< 	t.meta.L1BlockNumber = new(big.Int).SetUint64(bn)
+---
+> 	return &Transaction{data: d}
+190c144,147
+< 	return tx.data.MarshalJSON()
+---
+> 	hash := tx.Hash()
+> 	data := tx.data
+> 	data.Hash = &hash
+> 	return data.MarshalJSON()
+195,196c152,153
+< 	err := tx.data.UnmarshalJSON(input)
+< 	if err != nil {
+---
+> 	var dec txdata
+> 	if err := dec.UnmarshalJSON(input); err != nil {
+200c157
+< 	withSignature := tx.data.V.Sign() != 0 || tx.data.R.Sign() != 0 || tx.data.S.Sign() != 0
+---
+> 	withSignature := dec.V.Sign() != 0 || dec.R.Sign() != 0 || dec.S.Sign() != 0
+203,205c160,162
+< 		if isProtectedV(tx.data.V) {
+< 			chainID := deriveChainId(tx.data.V).Uint64()
+< 			V = byte(tx.data.V.Uint64() - 35 - 2*chainID)
+---
+> 		if isProtectedV(dec.V) {
+> 			chainID := deriveChainId(dec.V).Uint64()
+> 			V = byte(dec.V.Uint64() - 35 - 2*chainID)
+207c164
+< 			V = byte(tx.data.V.Uint64() - 27)
+---
+> 			V = byte(dec.V.Uint64() - 27)
+209c166
+< 		if !crypto.ValidateSignatureValues(V, tx.data.R, tx.data.S, false) {
+---
+> 		if !crypto.ValidateSignatureValues(V, dec.R, dec.S, false) {
+213a171
+> 	*tx = Transaction{data: dec}
+219d176
+< func (tx *Transaction) L2Gas() uint64      { return fees.DecodeL2GasLimitU64(tx.data.GasLimit) }
+225,226d181
+< func (tx *Transaction) SetNonce(nonce uint64) { tx.data.AccountNonce = nonce }
+< 
+237,261d191
+< // L1MessageSender returns the L1 message sender address of the transaction if one exists.
+< // It returns nil if this transaction was not from an L1 contract.
+< func (tx *Transaction) L1MessageSender() *common.Address {
+< 	if tx.meta.L1MessageSender == nil {
+< 		return nil
+< 	}
+< 	l1MessageSender := *tx.meta.L1MessageSender
+< 	return &l1MessageSender
+< }
+< 
+< // L1BlockNumber returns the L1 block number of the transaction if one exists.
+< // It returns nil if this transaction was not generated from a transaction received on L1.
+< func (tx *Transaction) L1BlockNumber() *big.Int {
+< 	if tx.meta.L1BlockNumber == nil {
+< 		return nil
+< 	}
+< 	l1BlockNumber := *tx.meta.L1BlockNumber
+< 	return &l1BlockNumber
+< }
+< 
+< // QueueOrigin returns the Queue Origin of the transaction
+< func (tx *Transaction) QueueOrigin() QueueOrigin {
+< 	return tx.meta.QueueOrigin
+< }
+< 
+268d197
+< 
+300,303d228
+< 
+< 		l1MessageSender: tx.meta.L1MessageSender,
+< 		l1BlockNumber:   tx.meta.L1BlockNumber,
+< 		queueOrigin:     tx.meta.QueueOrigin,
+308,315d232
+< 
+< 	if tx.meta.L1MessageSender != nil {
+< 		msg.l1MessageSender = tx.meta.L1MessageSender
+< 	} else {
+< 		addr := common.Address{}
+< 		msg.l1MessageSender = &addr
+< 	}
+< 
+326c243
+< 	cpy := &Transaction{data: tx.data, meta: tx.meta}
+---
+> 	cpy := &Transaction{data: tx.data}
+406,437d322
+< type TxByIndexAndPrice Transactions
+< 
+< func (s TxByIndexAndPrice) Len() int { return len(s) }
+< func (s TxByIndexAndPrice) Less(i, j int) bool {
+< 	metai, metaj := s[i].GetMeta(), s[j].GetMeta()
+< 	// They should never be the same integer but they
+< 	// can both be nil. Sort by gasPrice in this case.
+< 	if metai.Index == nil && metaj.Index == nil {
+< 		return s[i].data.Price.Cmp(s[j].data.Price) > 0
+< 	}
+< 	// When the index is nil, it means that it is unknown. This
+< 	// indicates queue origin sequencer.
+< 	if metai.Index == nil && metaj.Index != nil {
+< 		return false
+< 	}
+< 	if metai.Index != nil && metaj.Index == nil {
+< 		return true
+< 	}
+< 	return *metai.Index < *metaj.Index
+< }
+< func (s TxByIndexAndPrice) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+< func (s *TxByIndexAndPrice) Push(x interface{}) {
+< 	*s = append(*s, x.(*Transaction))
+< }
+< func (s *TxByIndexAndPrice) Pop() interface{} {
+< 	old := *s
+< 	n := len(old)
+< 	x := old[n-1]
+< 	*s = old[0 : n-1]
+< 	return x
+< }
+< 
+443c328
+< 	heads  TxByIndexAndPrice               // Next transaction for each unique account (price heap)
+---
+> 	heads  TxByPrice                       // Next transaction for each unique account (price heap)
+454c339
+< 	heads := make(TxByIndexAndPrice, 0, len(txs))
+---
+> 	heads := make(TxByPrice, 0, len(txs))
+456,464c341,346
+< 		// This prevents a panic, not ideal.
+< 		if len(accTxs) > 0 {
+< 			heads = append(heads, accTxs[0])
+< 			// Ensure the sender address is from the signer
+< 			acc, _ := Sender(signer, accTxs[0])
+< 			txs[acc] = accTxs[1:]
+< 			if from != acc {
+< 				delete(txs, from)
+< 			}
+---
+> 		heads = append(heads, accTxs[0])
+> 		// Ensure the sender address is from the signer
+> 		acc, _ := Sender(signer, accTxs[0])
+> 		txs[acc] = accTxs[1:]
+> 		if from != acc {
+> 			delete(txs, from)
+515,518d396
+< 
+< 	l1MessageSender *common.Address
+< 	l1BlockNumber   *big.Int
+< 	queueOrigin     QueueOrigin
+521c399
+< func NewMessage(from common.Address, to *common.Address, nonce uint64, amount *big.Int, gasLimit uint64, gasPrice *big.Int, data []byte, checkNonce bool, l1MessageSender *common.Address, l1BlockNumber *big.Int, queueOrigin QueueOrigin) Message {
+---
+> func NewMessage(from common.Address, to *common.Address, nonce uint64, amount *big.Int, gasLimit uint64, gasPrice *big.Int, data []byte, checkNonce bool) Message {
+531,534d408
+< 
+< 		l1BlockNumber:   l1BlockNumber,
+< 		l1MessageSender: l1MessageSender,
+< 		queueOrigin:     queueOrigin,
+546,549d419
+< 
+< func (m Message) L1MessageSender() *common.Address { return m.l1MessageSender }
+< func (m Message) L1BlockNumber() *big.Int          { return m.l1BlockNumber }
+< func (m Message) QueueOrigin() QueueOrigin         { return m.queueOrigin }
+Only in l2geth/core/types: transaction_meta.go
+Only in l2geth/core/types: transaction_meta_test.go
+diff -r l2geth/core/types/transaction_test.go ../go-ethereum/core/types/transaction_test.go
+34,39c34,38
+< 	emptyTx              = NewTransaction(0, common.HexToAddress("095e7baea6a6c7c4c2dfeb977efac326af552d87"), big.NewInt(0), 0, big.NewInt(0), nil)
+< 	emptyTxEmptyL1Sender = NewTransaction(0, common.HexToAddress("095e7baea6a6c7c4c2dfeb977efac326af552d87"), big.NewInt(0), 0, big.NewInt(0), nil)
+< 
+< 	rightvrsTx, _ = NewTransaction(3, common.HexToAddress("b94f5374fce5edbc8e2a8697c15331677e6ebf0b"), big.NewInt(10), 2000, big.NewInt(1), common.FromHex("5544")).WithSignature(
+< 		HomesteadSigner{},
+< 		common.Hex2Bytes("98ff921201554726367d2be8c804a7ff89ccf285ebc57dff8ae4c44b9c19ac4a8887321be575c8095f789dd4c743dfe42c1820f9231f98a962b210e3ac2452a301"),
+---
+> 	emptyTx = NewTransaction(
+> 		0,
+> 		common.HexToAddress("095e7baea6a6c7c4c2dfeb977efac326af552d87"),
+> 		big.NewInt(0), 0, big.NewInt(0),
+> 		nil,
+42c41,48
+< 	rightvrsTxWithL1Sender, _ = NewTransaction(3, common.HexToAddress("b94f5374fce5edbc8e2a8697c15331677e6ebf0b"), big.NewInt(10), 2000, big.NewInt(1), common.FromHex("5544")).WithSignature(
+---
+> 	rightvrsTx, _ = NewTransaction(
+> 		3,
+> 		common.HexToAddress("b94f5374fce5edbc8e2a8697c15331677e6ebf0b"),
+> 		big.NewInt(10),
+> 		2000,
+> 		big.NewInt(1),
+> 		common.FromHex("5544"),
+> 	).WithSignature(
+46,52d51
+< 
+< 	rightvrsTxWithL1BlockNumber, _ = NewTransaction(3, common.HexToAddress("b94f5374fce5edbc8e2a8697c15331677e6ebf0b"), big.NewInt(10), 2000, big.NewInt(1), common.FromHex("5544")).WithSignature(
+< 		HomesteadSigner{},
+< 		common.Hex2Bytes("98ff921201554726367d2be8c804a7ff89ccf285ebc57dff8ae4c44b9c19ac4a8887321be575c8095f789dd4c743dfe42c1820f9231f98a962b210e3ac2452a301"),
+< 	)
+< 
+< 	emptyTxSighashEthSign = NewTransaction(0, common.HexToAddress("095e7baea6a6c7c4c2dfeb977efac326af552d87"), big.NewInt(0), 0, big.NewInt(0), nil)
+74,102d72
+< 
+< 	txc, err := rlp.EncodeToBytes(rightvrsTxWithL1Sender)
+< 	if err != nil {
+< 		t.Fatalf("encode error: %v", err)
+< 	}
+< 	if !bytes.Equal(txc, should) {
+< 		t.Errorf("RLP encoding with L1MessageSender should be the same. Got %x", txc)
+< 	}
+< 
+< 	txd, err := rlp.EncodeToBytes(rightvrsTxWithL1BlockNumber)
+< 	if err != nil {
+< 		t.Fatalf("encode error: %v", err)
+< 	}
+< 	if !bytes.Equal(txd, should) {
+< 		t.Errorf("RLP encoding with L1MessageSender should be the same. Got %x", txd)
+< 	}
+< 
+< 	txe, err := rlp.EncodeToBytes(emptyTx)
+< 	if err != nil {
+< 		t.Fatalf("encode error: %v", err)
+< 	}
+< 
+< 	txf, err := rlp.EncodeToBytes(emptyTxSighashEthSign)
+< 	if err != nil {
+< 		t.Fatalf("encode error: %v", err)
+< 	}
+< 	if !bytes.Equal(txe, txf) {
+< 		t.Error("RLP encoding with SighashEthSign should be the same")
+< 	}
+250,264d219
+< 	}
+< }
+< 
+< // Tests that OVM metadata has no impact on hash
+< func TestOVMMetaDataHash(t *testing.T) {
+< 	if rightvrsTx.Hash() != rightvrsTxWithL1Sender.Hash() {
+< 		t.Errorf("L1MessageSender, should not affect the hash, want %x, got %x with L1MessageSender", rightvrsTx.Hash(), rightvrsTxWithL1Sender.Hash())
+< 	}
+< 
+< 	if rightvrsTx.Hash() != rightvrsTxWithL1BlockNumber.Hash() {
+< 		t.Errorf("L1BlockNumber, should not affect the hash, want %x, got %x with L1BlockNumber", rightvrsTx.Hash(), rightvrsTxWithL1BlockNumber.Hash())
+< 	}
+< 
+< 	if emptyTx.Hash() != emptyTxEmptyL1Sender.Hash() {
+< 		t.Errorf("L1MessageSender, should not affect the hash, want %x, got %x with L1MessageSender", emptyTx.Hash(), emptyTxEmptyL1Sender.Hash())
+diff -r l2geth/core/vm/errors.go ../go-ethereum/core/vm/errors.go
+30,32d29
+< 	ErrOvmExecutionFailed       = errors.New("ovm execution failed")
+< 	ErrOvmCreationFailed        = errors.New("creation called by non-Execution Manager contract")
+< 	ErrOvmSandboxEscape         = errors.New("ovm execution escaped from sandbox")
+diff -r l2geth/core/vm/evm.go ../go-ethereum/core/vm/evm.go
+20d19
+< 	"fmt"
+22d20
+< 	"strings"
+26d23
+< 	"github.com/ethereum/go-ethereum/accounts/abi"
+28d24
+< 	"github.com/ethereum/go-ethereum/common/hexutil"
+30d25
+< 	"github.com/ethereum/go-ethereum/log"
+32d26
+< 	"github.com/ethereum/go-ethereum/rollup/dump"
+35,99d28
+< // codec is a decoder for the return values of the execution manager. It decodes
+< // (bool, bytes) from the bytes that are returned from both
+< // `ExecutionManager.run()` and `ExecutionManager.simulateMessage()`
+< var codec abi.ABI
+< 
+< // innerData represents the results returned from the ExecutionManager
+< // that are wrapped in `bytes`
+< type innerData struct {
+< 	Success    bool   `abi:"_success"`
+< 	ReturnData []byte `abi:"_returndata"`
+< }
+< 
+< // runReturnData represents the actual return data of the ExecutionManager.
+< // It wraps (bool, bytes) in an ABI encoded bytes
+< type runReturnData struct {
+< 	ReturnData []byte `abi:"_returndata"`
+< }
+< 
+< // Will be removed when we update EM to return data in `run`.
+< var deadPrefix, fortyTwoPrefix, zeroPrefix []byte
+< 
+< func init() {
+< 	const abidata = `
+< 	[
+< 		{
+< 			"type": "function",
+< 			"name": "call",
+< 			"constant": true,
+< 			"inputs": [],
+< 			"outputs": [
+< 				{
+< 					"name": "_success",
+< 					"type": "bool"
+< 				},
+< 				{
+< 					"name": "_returndata",
+< 					"type": "bytes"
+< 				}
+< 			]
+< 		},
+< 		{
+< 			"type": "function",
+< 			"name": "blob",
+< 			"constant": true,
+< 			"inputs": [],
+< 			"outputs": [
+< 				{
+< 					"name": "_returndata",
+< 					"type": "bytes"
+< 				}
+< 			]
+< 		}
+< 	]
+< `
+< 
+< 	var err error
+< 	codec, err = abi.JSON(strings.NewReader(abidata))
+< 	if err != nil {
+< 		panic(fmt.Errorf("unable to create abi decoder: %v", err))
+< 	}
+< 	deadPrefix = hexutil.MustDecode("0xdeaddeaddeaddeaddeaddeaddeaddeaddead")
+< 	zeroPrefix = hexutil.MustDecode("0x000000000000000000000000000000000000")
+< 	fortyTwoPrefix = hexutil.MustDecode("0x420000000000000000000000000000000000")
+< }
+< 
+116,123d44
+< 	if UsingOVM {
+< 		// OVM_ENABLED
+< 		// Only log for non `eth_call`s
+< 		if evm.Context.EthCallSender == nil {
+< 			log.Debug("Calling contract", "Address", contract.Address().Hex(), "Data", hexutil.Encode(input))
+< 		}
+< 	}
+< 
+136d56
+< 
+150d69
+< 
+175,185d93
+< 
+< 	// OVM_ADDITION
+< 	EthCallSender             *common.Address
+< 	IsL1ToL2Message           bool
+< 	IsSuccessfulL1ToL2Message bool
+< 	OvmExecutionManager       dump.OvmDumpAccount
+< 	OvmStateManager           dump.OvmDumpAccount
+< 	OvmSafetyChecker          dump.OvmDumpAccount
+< 	OvmL2CrossDomainMessenger dump.OvmDumpAccount
+< 	OvmETH                    dump.OvmDumpAccount
+< 	OvmL2StandardBridge       dump.OvmDumpAccount
+228,238d135
+< 	// Add the ExecutionManager and StateManager to the Context here to
+< 	// prevent the need to update function signatures across the codebase.
+< 	if chainConfig != nil && chainConfig.StateDump != nil {
+< 		ctx.OvmExecutionManager = chainConfig.StateDump.Accounts["OVM_ExecutionManager"]
+< 		ctx.OvmStateManager = chainConfig.StateDump.Accounts["OVM_StateManager"]
+< 		ctx.OvmSafetyChecker = chainConfig.StateDump.Accounts["OVM_SafetyChecker"]
+< 		ctx.OvmL2CrossDomainMessenger = chainConfig.StateDump.Accounts["OVM_L2CrossDomainMessenger"]
+< 		ctx.OvmETH = chainConfig.StateDump.Accounts["OVM_ETH"]
+< 		ctx.OvmL2StandardBridge = chainConfig.StateDump.Accounts["OVM_L2StandardBridge"]
+< 	}
+< 
+301,307c198,200
+< 
+< 	if !UsingOVM {
+< 		// OVM_DISABLED
+< 		// Fail if we're trying to transfer more than the available balance
+< 		if !evm.Context.CanTransfer(evm.StateDB, caller.Address(), value) {
+< 			return nil, gas, ErrInsufficientBalance
+< 		}
+---
+> 	// Fail if we're trying to transfer more than the available balance
+> 	if !evm.Context.CanTransfer(evm.StateDB, caller.Address(), value) {
+> 		return nil, gas, ErrInsufficientBalance
+314d206
+< 
+333,338c225
+< 
+< 	if !UsingOVM {
+< 		// OVM_DISABLED
+< 		evm.Transfer(evm.StateDB, caller.Address(), to.Address(), value)
+< 	}
+< 
+---
+> 	evm.Transfer(evm.StateDB, caller.Address(), to.Address(), value)
+355d241
+< 
+367d252
+< 
+387,392c272,274
+< 	if !UsingOVM {
+< 		// OVM_DISABLED
+< 		// Fail if we're trying to transfer more than the available balance
+< 		if !evm.CanTransfer(evm.StateDB, caller.Address(), value) {
+< 			return nil, gas, ErrInsufficientBalance
+< 		}
+---
+> 	// Fail if we're trying to transfer more than the available balance
+> 	if !evm.CanTransfer(evm.StateDB, caller.Address(), value) {
+> 		return nil, gas, ErrInsufficientBalance
+507,511c389,390
+< 	if !UsingOVM {
+< 		// OVM_DISABLED
+< 		if !evm.CanTransfer(evm.StateDB, caller.Address(), value) {
+< 			return nil, common.Address{}, gas, ErrInsufficientBalance
+< 		}
+---
+> 	if !evm.CanTransfer(evm.StateDB, caller.Address(), value) {
+> 		return nil, common.Address{}, gas, ErrInsufficientBalance
+513d391
+< 
+528,531c406
+< 	if !UsingOVM {
+< 		// OVM_DISABLED
+< 		evm.Transfer(evm.StateDB, caller.Address(), address, value)
+< 	}
+---
+> 	evm.Transfer(evm.StateDB, caller.Address(), address, value)
+602,610d476
+< 
+< // OvmADDRESS will be set by the execution manager to the target address whenever it's
+< // about to create a new contract. This value is currently stored at the [15] storage slot.
+< // Can pull this specific storage slot to get the address that the execution manager is
+< // trying to create to, and create to it.
+< func (evm *EVM) OvmADDRESS() common.Address {
+< 	slot := common.Hash{31: 0x0f}
+< 	return common.BytesToAddress(evm.StateDB.GetState(evm.Context.OvmExecutionManager.Address, slot).Bytes())
+< }
+diff -r l2geth/core/vm/interpreter.go ../go-ethereum/core/vm/interpreter.go
+279c279
+< 			in.returnData = common.CopyBytes(res)
+---
+> 			in.returnData = res
+Only in l2geth/core/vm: ovm_state_dump.go
+diff -r l2geth/crypto/bn256/bn256_slow.go ../go-ethereum/crypto/bn256/bn256_slow.go
+10c10
+< import bn256 "github.com/ethereum/go-ethereum/crypto/bn256/google"
+---
+> import "github.com/ethereum/go-ethereum/crypto/bn256/google"
+Only in ../go-ethereum/: Dockerfile
+Only in ../go-ethereum/: Dockerfile.alltools
+Only in ../go-ethereum/: .dockerignore
+diff -r l2geth/eth/api_backend.go ../go-ethereum/eth/api_backend.go
+22d21
+< 	"fmt"
+38d36
+< 	"github.com/ethereum/go-ethereum/log"
+45,87c43,45
+< 	extRPCEnabled   bool
+< 	eth             *Ethereum
+< 	gpo             *gasprice.Oracle
+< 	rollupGpo       *gasprice.RollupOracle
+< 	verifier        bool
+< 	gasLimit        uint64
+< 	UsingOVM        bool
+< 	MaxCallDataSize int
+< }
+< 
+< func (b *EthAPIBackend) IsVerifier() bool {
+< 	return b.verifier
+< }
+< 
+< func (b *EthAPIBackend) IsSyncing() bool {
+< 	return b.eth.syncService.IsSyncing()
+< }
+< 
+< func (b *EthAPIBackend) GasLimit() uint64 {
+< 	return b.gasLimit
+< }
+< 
+< func (b *EthAPIBackend) GetEthContext() (uint64, uint64) {
+< 	bn := b.eth.syncService.GetLatestL1BlockNumber()
+< 	ts := b.eth.syncService.GetLatestL1Timestamp()
+< 	return bn, ts
+< }
+< 
+< func (b *EthAPIBackend) GetRollupContext() (uint64, uint64, uint64) {
+< 	index := uint64(0)
+< 	queueIndex := uint64(0)
+< 	verifiedIndex := uint64(0)
+< 
+< 	if latest := b.eth.syncService.GetLatestIndex(); latest != nil {
+< 		index = *latest
+< 	}
+< 	if latest := b.eth.syncService.GetLatestEnqueueIndex(); latest != nil {
+< 		queueIndex = *latest
+< 	}
+< 	if latest := b.eth.syncService.GetLatestVerifiedIndex(); latest != nil {
+< 		verifiedIndex = *latest
+< 	}
+< 	return index, queueIndex, verifiedIndex
+---
+> 	extRPCEnabled bool
+> 	eth           *Ethereum
+> 	gpo           *gasprice.Oracle
+100,106c58
+< 	if number == 0 {
+< 		log.Info("Cannot reset to genesis")
+< 		return
+< 	}
+< 	if !b.UsingOVM {
+< 		b.eth.protocolManager.downloader.Cancel()
+< 	}
+---
+> 	b.eth.protocolManager.downloader.Cancel()
+108,135d59
+< 
+< 	// Make sure to reset the LatestL1{Timestamp,BlockNumber}
+< 	block := b.eth.blockchain.CurrentBlock()
+< 	txs := block.Transactions()
+< 	if len(txs) == 0 {
+< 		log.Error("No transactions found in block", "number", number)
+< 		return
+< 	}
+< 
+< 	tx := txs[0]
+< 	blockNumber := tx.L1BlockNumber()
+< 	if blockNumber == nil {
+< 		log.Error("No L1BlockNumber found in transaction", "number", number)
+< 		return
+< 	}
+< 
+< 	b.eth.syncService.SetLatestL1Timestamp(tx.L1Timestamp())
+< 	b.eth.syncService.SetLatestL1BlockNumber(blockNumber.Uint64())
+< }
+< 
+< func (b *EthAPIBackend) IngestTransactions(txs []*types.Transaction) error {
+< 	for _, tx := range txs {
+< 		err := b.eth.syncService.IngestTransaction(tx)
+< 		if err != nil {
+< 			return err
+< 		}
+< 	}
+< 	return nil
+301,302d224
+< // Transactions originating from the RPC endpoints are added to remotes so that
+< // a lock can be used around the remotes for when the sequencer is reorganizing.
+304,319d225
+< 	if b.UsingOVM {
+< 		to := signedTx.To()
+< 		if to != nil {
+< 			// Prevent QueueOriginSequencer transactions that are too large to
+< 			// be included in a batch. The `MaxCallDataSize` should be set to
+< 			// the layer one consensus max transaction size in bytes minus the
+< 			// constant sized overhead of a batch. This will prevent
+< 			// a layer two transaction from not being able to be batch submitted
+< 			// to layer one.
+< 			if len(signedTx.Data()) > b.MaxCallDataSize {
+< 				return fmt.Errorf("Calldata cannot be larger than %d, sent %d", b.MaxCallDataSize, len(signedTx.Data()))
+< 			}
+< 		}
+< 		return b.eth.syncService.ValidateAndApplySequencerTransaction(signedTx)
+< 	}
+< 	// OVM Disabled
+370,385d275
+< }
+< 
+< func (b *EthAPIBackend) SuggestL1GasPrice(ctx context.Context) (*big.Int, error) {
+< 	return b.rollupGpo.SuggestL1GasPrice(ctx)
+< }
+< 
+< func (b *EthAPIBackend) SuggestL2GasPrice(ctx context.Context) (*big.Int, error) {
+< 	return b.rollupGpo.SuggestL2GasPrice(ctx)
+< }
+< 
+< func (b *EthAPIBackend) SetL1GasPrice(ctx context.Context, gasPrice *big.Int) error {
+< 	return b.rollupGpo.SetL1GasPrice(gasPrice)
+< }
+< 
+< func (b *EthAPIBackend) SetL2GasPrice(ctx context.Context, gasPrice *big.Int) error {
+< 	return b.rollupGpo.SetL2GasPrice(gasPrice)
+diff -r l2geth/eth/api_tracer.go ../go-ethereum/eth/api_tracer.go
+808,816c808
+< 		var msg core.Message
+< 		if !vm.UsingOVM {
+< 			msg, _ = tx.AsMessage(signer)
+< 		} else {
+< 			msg, err = core.AsOvmMessage(tx, signer, common.HexToAddress("0x4200000000000000000000000000000000000005"), block.Header().GasLimit)
+< 			if err != nil {
+< 				return nil, vm.Context{}, nil, err
+< 			}
+< 		}
+---
+> 		msg, _ := tx.AsMessage(signer)
+diff -r l2geth/eth/backend.go ../go-ethereum/eth/backend.go
+21d20
+< 	"context"
+29,30d27
+< 	"github.com/ethereum/go-ethereum/rollup"
+< 
+80d76
+< 	syncService     *rollup.SyncService
+127c123
+< 	if config.Miner.GasPrice == nil || config.Miner.GasPrice.Cmp(common.Big0) < 0 {
+---
+> 	if config.Miner.GasPrice == nil || config.Miner.GasPrice.Cmp(common.Big0) <= 0 {
+191d186
+< 
+209,213d203
+< 	eth.syncService, err = rollup.NewSyncService(context.Background(), config.Rollup, eth.txPool, eth.blockchain, eth.chainDb)
+< 	if err != nil {
+< 		return nil, fmt.Errorf("Cannot initialize syncservice: %w", err)
+< 	}
+< 
+226,227c216
+< 	log.Info("Backend Config", "max-calldata-size", config.Rollup.MaxCallDataSize, "gas-limit", config.Rollup.GasLimit, "is-verifier", config.Rollup.IsVerifier, "using-ovm", vm.UsingOVM)
+< 	eth.APIBackend = &EthAPIBackend{ctx.ExtRPCEnabled(), eth, nil, nil, config.Rollup.IsVerifier, config.Rollup.GasLimit, vm.UsingOVM, config.Rollup.MaxCallDataSize}
+---
+> 	eth.APIBackend = &EthAPIBackend{ctx.ExtRPCEnabled(), eth, nil}
+233,236c222
+< 	// create the Rollup GPO and allow the API backend and the sync service to access it
+< 	rollupGpo := gasprice.NewRollupOracle()
+< 	eth.APIBackend.rollupGpo = rollupGpo
+< 	eth.syncService.RollupGpo = rollupGpo
+---
+> 
+241,250d226
+< 	if vm.UsingOVM {
+< 		// Make the extradata deterministic
+< 		extra, _ = rlp.EncodeToBytes([]interface{}{
+< 			uint(params.VersionMajor<<16 | params.VersionMinor<<8 | params.VersionPatch),
+< 			"geth",
+< 			"go1.15.13",
+< 			"linux",
+< 		})
+< 		return extra
+< 	}
+520d495
+< func (s *Ethereum) SyncService() *rollup.SyncService   { return s.syncService }
+554a530,543
+> 
+> 	// Figure out a max peers count based on the server limits
+> 	maxPeers := srvr.MaxPeers
+> 	if s.config.LightServ > 0 {
+> 		if s.config.LightPeers >= srvr.MaxPeers {
+> 			return fmt.Errorf("invalid peer config: light peer count (%d) >= total peer count (%d)", s.config.LightPeers, srvr.MaxPeers)
+> 		}
+> 		maxPeers -= s.config.LightPeers
+> 	}
+> 	// Start the networking layer and the light server if requested
+> 	s.protocolManager.Start(maxPeers)
+> 	if s.lesServer != nil {
+> 		s.lesServer.Start(srvr)
+> 	}
+563a553,556
+> 	s.protocolManager.Stop()
+> 	if s.lesServer != nil {
+> 		s.lesServer.Stop()
+> 	}
+567d559
+< 	s.syncService.Stop()
+diff -r l2geth/eth/config.go ../go-ethereum/eth/config.go
+34d33
+< 	"github.com/ethereum/go-ethereum/rollup"
+65,84d63
+< 	Rollup: rollup.Config{
+< 		StateDumpPath: "https://raw.githubusercontent.com/ethereum-optimism/regenesis/master/master.json",
+< 		// The max size of a transaction that is sent over the p2p network is 128kb
+< 		// https://github.com/ethereum/go-ethereum/blob/c2d2f4ed8f232bb11663a1b01a2e578aa22f24bd/core/tx_pool.go#L51
+< 		// The batch overhead is:
+< 		// 4 bytes function selector
+< 		// 5 bytes shouldStartAtElement
+< 		// 3 bytes totalElementsToAppend
+< 		// 3 bytes context header
+< 		// 16 bytes for a single batch context
+< 		// 3 bytes for tx size
+< 		// the rest of the data can be used for the transaction
+< 		// Therefore, the max safe tx size to accept via the sequencer is:
+< 		// 128000 - (5+3+3+16+4+3) = 127966
+< 		// The mempool would need to be bypassed if a transaction any larger was
+< 		// accepted. This option applies to the transaction calldata, so there
+< 		// is additional overhead that is unaccounted. Round down to 127000 for
+< 		// safety.
+< 		MaxCallDataSize: 127000,
+< 	},
+184,186d162
+< 
+< 	// Optimism Rollup Config
+< 	Rollup rollup.Config
+diff -r l2geth/eth/downloader/downloader.go ../go-ethereum/eth/downloader/downloader.go
+1794a1795,1796
+> 		// Log the new QoS values and sleep until the next RTT
+> 		log.Debug("Recalculated downloader QoS values", "rtt", rtt, "confidence", float64(conf)/1000000.0, "ttl", d.requestTTL())
+diff -r l2geth/eth/downloader/downloader_test.go ../go-ethereum/eth/downloader/downloader_test.go
+484,491c484,489
+< func TestCanonicalSynchronisation62(t *testing.T)     { testCanonicalSynchronisation(t, 62, FullSync) }
+< func TestCanonicalSynchronisation63Full(t *testing.T) { testCanonicalSynchronisation(t, 63, FullSync) }
+< func TestCanonicalSynchronisation63Fast(t *testing.T) { testCanonicalSynchronisation(t, 63, FastSync) }
+< func TestCanonicalSynchronisation64Full(t *testing.T) { testCanonicalSynchronisation(t, 64, FullSync) }
+< func TestCanonicalSynchronisation64Fast(t *testing.T) { testCanonicalSynchronisation(t, 64, FastSync) }
+< func TestCanonicalSynchronisation64Light(t *testing.T) {
+< 	testCanonicalSynchronisation(t, 64, LightSync)
+< }
+---
+> func TestCanonicalSynchronisation62(t *testing.T)      { testCanonicalSynchronisation(t, 62, FullSync) }
+> func TestCanonicalSynchronisation63Full(t *testing.T)  { testCanonicalSynchronisation(t, 63, FullSync) }
+> func TestCanonicalSynchronisation63Fast(t *testing.T)  { testCanonicalSynchronisation(t, 63, FastSync) }
+> func TestCanonicalSynchronisation64Full(t *testing.T)  { testCanonicalSynchronisation(t, 64, FullSync) }
+> func TestCanonicalSynchronisation64Fast(t *testing.T)  { testCanonicalSynchronisation(t, 64, FastSync) }
+> func TestCanonicalSynchronisation64Light(t *testing.T) { testCanonicalSynchronisation(t, 64, LightSync) }
+694,701c692,694
+< func TestBoundedHeavyForkedSync62(t *testing.T)     { testBoundedHeavyForkedSync(t, 62, FullSync) }
+< func TestBoundedHeavyForkedSync63Full(t *testing.T) { testBoundedHeavyForkedSync(t, 63, FullSync) }
+< func TestBoundedHeavyForkedSync63Fast(t *testing.T) {
+< 	// TODO: SKIPPING
+< 	t.Skip("This test fails on the last pre-fork commit. It may be OS X related")
+< 
+< 	testBoundedHeavyForkedSync(t, 63, FastSync)
+< }
+---
+> func TestBoundedHeavyForkedSync62(t *testing.T)      { testBoundedHeavyForkedSync(t, 62, FullSync) }
+> func TestBoundedHeavyForkedSync63Full(t *testing.T)  { testBoundedHeavyForkedSync(t, 63, FullSync) }
+> func TestBoundedHeavyForkedSync63Fast(t *testing.T)  { testBoundedHeavyForkedSync(t, 63, FastSync) }
+Only in l2geth/eth/gasprice: rollup_gasprice.go
+diff -r l2geth/eth/handler_test.go ../go-ethereum/eth/handler_test.go
+277,278d276
+< 	t.Skip("OVM breaks this test with error: `account does not exist`")
+< 
+376,377d373
+< 	t.Skip("OVM breaks this test with error: `account does not exist`")
+< 
+diff -r l2geth/eth/tracers/tracers_test.go ../go-ethereum/eth/tracers/tracers_test.go
+124,126c124,125
+< 	t.Skip("OVM breaks this with `cannot read property` error, probably related to state manager.")
+< 
+< 	unsignedTx := types.NewTransaction(1, common.HexToAddress("0x00000000000000000000000000000000deadbeef"), new(big.Int), 5000000, big.NewInt(1), []byte{})
+---
+> 	unsignedTx := types.NewTransaction(1, common.HexToAddress("0x00000000000000000000000000000000deadbeef"),
+> 		new(big.Int), 5000000, big.NewInt(1), []byte{})
+206,207d204
+< 	t.Skip("OVM breaks this with `execution reverted` error, probably some execution mismatch.")
+< 
+diff -r l2geth/ethclient/ethclient_test.go ../go-ethereum/ethclient/ethclient_test.go
+19,22d18
+< /*
+< // There is an import cycle
+< // eth -> rollup -> ethclient
+< 
+342d337
+< */
+Only in ../go-ethereum/: .git
+Only in ../go-ethereum/: .gitattributes
+Only in ../go-ethereum/: .github
+Only in ../go-ethereum/: .gitignore
+Only in ../go-ethereum/: .gitmodules
+diff -r l2geth/.golangci.yml ../go-ethereum/.golangci.yml
+4c4
+<   timeout: 5m
+---
+>   timeout: 2m
+51,53d50
+<     - path: core/chain_makers_test.go
+<       linters:
+<         - govet
+diff -r l2geth/go.mod ../go-ethereum/go.mod
+3c3
+< go 1.15
+---
+> go 1.13
+10c10
+< 	github.com/VictoriaMetrics/fastcache v1.5.7
+---
+> 	github.com/VictoriaMetrics/fastcache v1.5.3
+14a15
+> 	github.com/cespare/xxhash/v2 v2.1.1 // indirect
+25d25
+< 	github.com/go-resty/resty/v2 v2.4.0
+28a29
+> 	github.com/google/go-cmp v0.3.1 // indirect
+31,32c32,33
+< 	github.com/hashicorp/golang-lru v0.5.4
+< 	github.com/huin/goupnp v1.0.0
+---
+> 	github.com/hashicorp/golang-lru v0.0.0-20160813221303-0a025b7e63ad
+> 	github.com/huin/goupnp v0.0.0-20161224104101-679507af18f3
+35,36d35
+< 	github.com/jarcoal/httpmock v1.0.8
+< 	github.com/jmoiron/sqlx v1.2.0
+38a38
+> 	github.com/kr/pretty v0.1.0 // indirect
+40d39
+< 	github.com/lib/pq v1.0.0
+43d41
+< 	github.com/mattn/go-sqlite3 v1.9.0
+51c49
+< 	github.com/robertkrimen/otto v0.0.0-20191219234010-c382bd3c16ff
+---
+> 	github.com/robertkrimen/otto v0.0.0-20170205013659-6a77b7cbc37d
+61,64c59,63
+< 	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
+< 	golang.org/x/sync v0.0.0-20201020160332-67f06af15bc9
+< 	golang.org/x/sys v0.0.0-20201119102817-f84b799fce68
+< 	golang.org/x/text v0.3.3
+---
+> 	golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2
+> 	golang.org/x/net v0.0.0-20190628185345-da137c7871d7 // indirect
+> 	golang.org/x/sync v0.0.0-20181108010431-42b317875d0f
+> 	golang.org/x/sys v0.0.0-20190712062909-fae7ac547cb7
+> 	golang.org/x/text v0.3.2
+66,67d64
+< 	golang.org/x/tools/gopls v0.5.3 // indirect
+< 	google.golang.org/appengine v1.6.6 // indirect
+69c66
+< 	gopkg.in/olebedev/go-duktape.v3 v3.0.0-20200316214253-d7b0ff38cac9
+---
+> 	gopkg.in/olebedev/go-duktape.v3 v3.0.0-20190213234257-ec84240a7772
+diff -r l2geth/go.sum ../go-ethereum/go.sum
+22d21
+< github.com/BurntSushi/toml v0.3.1 h1:WXkYYl6Yr3qBf1K79EBnL4mak0OimBfB0XUf9Vl28OQ=
+24a24,25
+> github.com/OneOfOne/xxhash v1.2.5 h1:zl/OfRA6nftbBK9qTohYBJ5xvw6C/oNKizR7cZGl3cI=
+> github.com/OneOfOne/xxhash v1.2.5/go.mod h1:eZbhyaAYD41SGSSsnmcpxVoRiQ/MPUTjUdIIOT9Um7Q=
+27,28c28,29
+< github.com/VictoriaMetrics/fastcache v1.5.7 h1:4y6y0G8PRzszQUYIQHHssv/jgPHAb5qQuuDNdCbyAgw=
+< github.com/VictoriaMetrics/fastcache v1.5.7/go.mod h1:ptDBkNMQI4RtmVo8VS/XwRY6RoTu1dAWCbrk+6WsEM8=
+---
+> github.com/VictoriaMetrics/fastcache v1.5.3 h1:2odJnXLbFZcoV9KYtQ+7TH1UOq3dn3AssMgieaezkR4=
+> github.com/VictoriaMetrics/fastcache v1.5.3/go.mod h1:+jv9Ckb+za/P1ZRg/sulP5Ni1v49daAVERr0H3CuscE=
+43a45,46
+> github.com/cespare/xxhash/v2 v2.0.1-0.20190104013014-3767db7a7e18 h1:pl4eWIqvFe/Kg3zkn7NxevNzILnZYWDCG7qbA1CJik0=
+> github.com/cespare/xxhash/v2 v2.0.1-0.20190104013014-3767db7a7e18/go.mod h1:HD5P3vAIAh+Y2GAxg0PrPN1P8WkepXGpjbUPDHJqqKM=
+77,81d79
+< github.com/go-resty/resty v1.12.0 h1:L1P5qymrXL5H/doXe2pKUr1wxovAI5ilm2LdVLbwThc=
+< github.com/go-resty/resty/v2 v2.4.0 h1:s6TItTLejEI+2mn98oijC5w/Rk2YU+OA6x0mnZN6r6k=
+< github.com/go-resty/resty/v2 v2.4.0/go.mod h1:B88+xCTEwvfD94NOuE6GS1wMlnoKNY8eEiNizfNwOwA=
+< github.com/go-sql-driver/mysql v1.4.0 h1:7LxgVwFb2hIQtMm87NdgAVfXjnt4OePseqT1tKx+opk=
+< github.com/go-sql-driver/mysql v1.4.0/go.mod h1:zAC/RDZ24gD3HViQzih4MyKcchzm+sOG5ZlKdlhCg5w=
+86d83
+< github.com/golang/protobuf v1.3.1/go.mod h1:6lQm79b+lXiMfvg/cZm0SGofjICqVBUtrP5yJMmIC1U=
+93,95d89
+< github.com/google/go-cmp v0.5.1 h1:JFrFEBb2xKufg6XkJsJr+WbKb4FQlURi5RUcBveYu9k=
+< github.com/google/go-cmp v0.5.1/go.mod h1:v8dTdLbMG2kIc/vJvl+f65V22dbkXbowE6jgT/gNBxE=
+< github.com/google/renameio v0.1.0/go.mod h1:KWCgfxg9yswjAJkECMjeO8J8rahYeXnNhOm40UhjYkI=
+100,101c94,95
+< github.com/hashicorp/golang-lru v0.5.4 h1:YDjusn29QI/Das2iO9M0BHnIbxPeyuCHsjMW+lJfyTc=
+< github.com/hashicorp/golang-lru v0.5.4/go.mod h1:iADmTwqILo4mZ8BN3D2Q6+9jd8WM5uGBxy+E8yxSoD4=
+---
+> github.com/hashicorp/golang-lru v0.0.0-20160813221303-0a025b7e63ad h1:eMxs9EL0PvIGS9TTtxg4R+JxuPGav82J8rA+GFnY7po=
+> github.com/hashicorp/golang-lru v0.0.0-20160813221303-0a025b7e63ad/go.mod h1:/m3WP610KZHVQ1SGc6re/UDhFvYD7pJ4Ao+sR/qLZy8=
+104,106c98,99
+< github.com/huin/goupnp v1.0.0 h1:wg75sLpL6DZqwHQN6E1Cfk6mtfzS45z8OV+ic+DtHRo=
+< github.com/huin/goupnp v1.0.0/go.mod h1:n9v9KO1tAxYH82qOn+UTIFQDmx5n1Zxd/ClZDMX7Bnc=
+< github.com/huin/goutil v0.0.0-20170803182201-1ca381bf3150/go.mod h1:PpLOETDnJ0o3iZrZfqZzyLl6l7F3c6L1oWn7OICBi6o=
+---
+> github.com/huin/goupnp v0.0.0-20161224104101-679507af18f3 h1:DqD8eigqlUm0+znmx7zhL0xvTW3+e1jCekJMfBUADWI=
+> github.com/huin/goupnp v0.0.0-20161224104101-679507af18f3/go.mod h1:MZ2ZmwcBpvOoJ22IJsc7va19ZwoheaBk43rKg12SKag=
+111,112d103
+< github.com/jarcoal/httpmock v1.0.8 h1:8kI16SoO6LQKgPE7PvQuV+YuD/inwHd7fOOe2zMbo4k=
+< github.com/jarcoal/httpmock v1.0.8/go.mod h1:ATjnClrvW/3tijVmpL/va5Z3aAyGvqU3gCT8nX0Txik=
+115,116d105
+< github.com/jmoiron/sqlx v1.2.0 h1:41Ip0zITnmWNR/vHV+S4m+VoUivnWY5E4OJfLZjCJMA=
+< github.com/jmoiron/sqlx v1.2.0/go.mod h1:1FEQNm3xlJgrMD+FBdI9+xvCksHtbpVBBw5dYhBSsks=
+121d109
+< github.com/kisielk/gotool v1.0.0/go.mod h1:XhKaO+MFFWcvkIS/tQcRk01m1F5IRFswLeQ+oQHNcck=
+131,132d118
+< github.com/lib/pq v1.0.0 h1:X5PMW56eZitiTeO7tKzZxFCSpbFZJtkMMooicw2us9A=
+< github.com/lib/pq v1.0.0/go.mod h1:5WUZQaWbwv1U+lTReE5YruASi9Al49XbQIvNi/34Woo=
+143,144d128
+< github.com/mattn/go-sqlite3 v1.9.0 h1:pDRiWfl+++eC2FEFRy6jXmQlvp4Yh3z1MJKg4UeYM/4=
+< github.com/mattn/go-sqlite3 v1.9.0/go.mod h1:FPy6KqzDD04eiIsT53CuJW3U88zkxoIYsOqkbpncsNc=
+178,182c162,163
+< github.com/robertkrimen/otto v0.0.0-20191219234010-c382bd3c16ff h1:+6NUiITWwE5q1KO6SAfUX918c+Tab0+tGAM/mtdlUyA=
+< github.com/robertkrimen/otto v0.0.0-20191219234010-c382bd3c16ff/go.mod h1:xvqspoSXJTIpemEonrMDFq6XzwHYYgToXWj5eRX1OtY=
+< github.com/rogpeppe/go-internal v1.3.0/go.mod h1:M8bDsm7K2OlrFYOpmOWEs/qY81heoFRclV5y23lUDJ4=
+< github.com/rogpeppe/go-internal v1.5.2/go.mod h1:xXDCJY+GAPziupqXw64V24skbSoqbTEfhy4qGm1nDQc=
+< github.com/rogpeppe/go-internal v1.6.1/go.mod h1:xXDCJY+GAPziupqXw64V24skbSoqbTEfhy4qGm1nDQc=
+---
+> github.com/robertkrimen/otto v0.0.0-20170205013659-6a77b7cbc37d h1:ouzpe+YhpIfnjR40gSkJHWsvXmB6TiPKqMtMpfyU9DE=
+> github.com/robertkrimen/otto v0.0.0-20170205013659-6a77b7cbc37d/go.mod h1:xvqspoSXJTIpemEonrMDFq6XzwHYYgToXWj5eRX1OtY=
+188,189d168
+< github.com/sergi/go-diff v1.1.0 h1:we8PVUC3FE2uYfodKH/nBHMSetSfHDR6scGdBi+erh0=
+< github.com/sergi/go-diff v1.1.0/go.mod h1:STckp+ISIX8hZLjrqAeVduY0gWCT9IjLuqbuNXdaHfM=
+191a171,172
+> github.com/spaolacci/murmur3 v1.0.1-0.20190317074736-539464a789e9 h1:5Cp3cVwpQP4aCQ6jx6dNLP3IarbYiuStmIzYu+BjQwY=
+> github.com/spaolacci/murmur3 v1.0.1-0.20190317074736-539464a789e9/go.mod h1:JwIasOWyU6f++ZhiEuf87xNszmSA2myDM2Kzu9HwQUA=
+210,212d190
+< github.com/yuin/goldmark v1.1.27/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
+< github.com/yuin/goldmark v1.1.32/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
+< github.com/yuin/goldmark v1.2.1/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
+215,222d192
+< golang.org/x/crypto v0.0.0-20191011191535-87dc89f01550/go.mod h1:yigFU9vqHzYiE8UmvKecakEJjdnWj3jj499lnFckfCI=
+< golang.org/x/crypto v0.0.0-20200311171314-f7b00557c8c4 h1:QmwruyY+bKbDDL0BaglrbZABEali68eoMFhTZpCjYVA=
+< golang.org/x/crypto v0.0.0-20200311171314-f7b00557c8c4/go.mod h1:LzIPMQfyMNhhGPhUkYOs5KpL4U8rLKemX1yGLhDgUto=
+< golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9 h1:psW17arqaxU48Z5kZ0CQnkZWQJsqcURM6tKiBApRjXI=
+< golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9/go.mod h1:LzIPMQfyMNhhGPhUkYOs5KpL4U8rLKemX1yGLhDgUto=
+< golang.org/x/mod v0.2.0/go.mod h1:s0Qsj1ACt9ePp/hMypM3fl4fZqREWJwdYDEqhRiZZUA=
+< golang.org/x/mod v0.3.0 h1:RM4zey1++hCTbCVQfnWeKs9/IEsaBLA8vTkd0WVtmH4=
+< golang.org/x/mod v0.3.0/go.mod h1:s0Qsj1ACt9ePp/hMypM3fl4fZqREWJwdYDEqhRiZZUA=
+224,235c194,195
+< golang.org/x/net v0.0.0-20181011144130-49bb7cea24b1/go.mod h1:mL1N/T3taQHkDXs73rZJwtUhF3w3ftmwwsq0BUmARs4=
+< golang.org/x/net v0.0.0-20190404232315-eb5bcb51f2a3/go.mod h1:t9HGtf8HONx5eT2rtn7q6eTqICYqUVnKs3thJo3Qplg=
+< golang.org/x/net v0.0.0-20190603091049-60506f45cf65/go.mod h1:HSz+uSET+XFnRR8LxR5pz3Of3rY3CfYBVs4xY44aLks=
+< golang.org/x/net v0.0.0-20190620200207-3b0461eec859/go.mod h1:z5CRVTTTmAJ677TzLLGU+0bjPO0LkuOLi4/5GtJWs/s=
+< golang.org/x/net v0.0.0-20200226121028-0de0cce0169b/go.mod h1:z5CRVTTTmAJ677TzLLGU+0bjPO0LkuOLi4/5GtJWs/s=
+< golang.org/x/net v0.0.0-20200425230154-ff2c4b7c35a0 h1:Jcxah/M+oLZ/R4/z5RzfPzGbPXnVDPkEDtf2JnuxN+U=
+< golang.org/x/net v0.0.0-20200425230154-ff2c4b7c35a0/go.mod h1:qpuaurCH72eLCgpAm/N6yyVIVM9cpaDIP3A8BGJEC5A=
+< golang.org/x/net v0.0.0-20200625001655-4c5254603344/go.mod h1:/O7V0waA8r7cgGh81Ro3o1hOxt32SMVPicZroKQ2sZA=
+< golang.org/x/net v0.0.0-20201021035429-f5854403a974 h1:IX6qOQeG5uLjB/hjjwjedwfjND0hgjPMMyO1RoIXQNI=
+< golang.org/x/net v0.0.0-20201021035429-f5854403a974/go.mod h1:sp8m0HH+o8qH0wwXwYZr8TS3Oi6o0r6Gce1SSxlDquU=
+< golang.org/x/net v0.0.0-20201224014010-6772e930b67b h1:iFwSg7t5GZmB/Q5TjiEAsdoLDrdJRC1RiF2WhuV29Qw=
+< golang.org/x/net v0.0.0-20201224014010-6772e930b67b/go.mod h1:m0MpNAwzfU5UDzcl9v0D8zg8gWTRqZa9RBIspLL5mdg=
+---
+> golang.org/x/net v0.0.0-20190628185345-da137c7871d7 h1:rTIdg5QFRR7XCaK4LCjBiPbx8j4DQRpdYMnGn/bJUEU=
+> golang.org/x/net v0.0.0-20190628185345-da137c7871d7/go.mod h1:z5CRVTTTmAJ677TzLLGU+0bjPO0LkuOLi4/5GtJWs/s=
+239,243d198
+< golang.org/x/sync v0.0.0-20190423024810-112230192c58/go.mod h1:RxMgew5VJxzue5/jJTE5uejpjVlOe/izrB70Jof72aM=
+< golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e/go.mod h1:RxMgew5VJxzue5/jJTE5uejpjVlOe/izrB70Jof72aM=
+< golang.org/x/sync v0.0.0-20200625203802-6e8e738ad208/go.mod h1:RxMgew5VJxzue5/jJTE5uejpjVlOe/izrB70Jof72aM=
+< golang.org/x/sync v0.0.0-20201020160332-67f06af15bc9 h1:SQFwaSi55rU7vdNs9Yr0Z324VNlrF+0wMqRXT4St8ck=
+< golang.org/x/sync v0.0.0-20201020160332-67f06af15bc9/go.mod h1:RxMgew5VJxzue5/jJTE5uejpjVlOe/izrB70Jof72aM=
+247,254c202,203
+< golang.org/x/sys v0.0.0-20190412213103-97732733099d/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
+< golang.org/x/sys v0.0.0-20200323222414-85ca7c5b95cd h1:xhmwyvizuTgC2qz7ZlMluP20uW+C3Rm0FD/WLDX8884=
+< golang.org/x/sys v0.0.0-20200323222414-85ca7c5b95cd/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
+< golang.org/x/sys v0.0.0-20200930185726-fdedc70b468f h1:+Nyd8tzPX9R7BWHguqsrbFdRx3WQ/1ib8I44HXV5yTA=
+< golang.org/x/sys v0.0.0-20200930185726-fdedc70b468f/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
+< golang.org/x/sys v0.0.0-20201119102817-f84b799fce68 h1:nxC68pudNYkKU6jWhgrqdreuFiOQWj1Fs7T3VrH4Pjw=
+< golang.org/x/sys v0.0.0-20201119102817-f84b799fce68/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
+< golang.org/x/term v0.0.0-20201126162022-7de9c90e9dd1/go.mod h1:bj7SfCRtBDWHUb9snDiAeCFNEtKQo2Wmx5Cou7ajbmo=
+---
+> golang.org/x/sys v0.0.0-20190712062909-fae7ac547cb7 h1:LepdCS8Gf/MVejFIt8lsiexZATdoGVyp5bcyS+rYoUI=
+> golang.org/x/sys v0.0.0-20190712062909-fae7ac547cb7/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
+258,259d206
+< golang.org/x/text v0.3.3 h1:cokOdA+Jmi5PJGXLlLllQSgYigAEfHXJAERHVMaCc2k=
+< golang.org/x/text v0.3.3/go.mod h1:5Zoc/QRtKVWzQhOtBMvqHzDpF6irO9z98xDceosuGiQ=
+262d208
+< golang.org/x/tools v0.0.0-20180917221912-90fa682c2a6e h1:FDhOuMEY4JVRztM/gsbk+IKUQ8kj74bxZrgw87eMMVc=
+264,278d209
+< golang.org/x/tools v0.0.0-20191119224855-298f0cb1881e/go.mod h1:b+2E5dAYhXwXZwtnZ6UAqBI28+e2cm9otk0dWdXHAEo=
+< golang.org/x/tools v0.0.0-20200410194907-79a7a3126eef/go.mod h1:EkVYQZoAsY45+roYkvgYkIh4xh/qjgUK9TdY2XT94GE=
+< golang.org/x/tools v0.0.0-20200731060945-b5fad4ed8dd6/go.mod h1:njjCfa9FT2d7l9Bc6FUM5FLjQPp3cFF28FI3qnDFljA=
+< golang.org/x/tools v0.0.0-20201110032815-ae45d7cf37a9 h1:S0ATUNSw92bO7f5Z+1tSQsq48TdQs2Ye2rTGJdtf5qc=
+< golang.org/x/tools v0.0.0-20201110032815-ae45d7cf37a9/go.mod h1:emZCQorbCU4vsT4fOWvOPXz4eW1wZW4PmDk9uLelYpA=
+< golang.org/x/tools v0.0.0-20201124005743-911501bfb504 h1:jOKV2ysikH1GANB7t2LotmhyvkkPvl7HQoEXkV6slJA=
+< golang.org/x/tools/gopls v0.5.3 h1:C8QSrqjqaVzlVoHL1R9yWbROoOApRgI8gN1G+cHlPuw=
+< golang.org/x/tools/gopls v0.5.3/go.mod h1:W4RRjThReIhl4bsed+iA7eJSLpDU8cpR3lWA3l6Khf4=
+< golang.org/x/xerrors v0.0.0-20190717185122-a985d3407aa7/go.mod h1:I/5z698sn9Ka8TeJc9MKroUUfqBBauWjQqLJ2OPfmY0=
+< golang.org/x/xerrors v0.0.0-20191011141410-1b5146add898/go.mod h1:I/5z698sn9Ka8TeJc9MKroUUfqBBauWjQqLJ2OPfmY0=
+< golang.org/x/xerrors v0.0.0-20191204190536-9bdfabe68543/go.mod h1:I/5z698sn9Ka8TeJc9MKroUUfqBBauWjQqLJ2OPfmY0=
+< golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 h1:go1bK/D/BFZV2I8cIQd1NKEZ+0owSTG1fDTci4IqFcE=
+< golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1/go.mod h1:I/5z698sn9Ka8TeJc9MKroUUfqBBauWjQqLJ2OPfmY0=
+< google.golang.org/appengine v1.6.6 h1:lMO5rYAqUxkmaj76jAkRUvt5JZgFymx/+Q5Mzfivuhc=
+< google.golang.org/appengine v1.6.6/go.mod h1:8WjMMxjGQR8xUklV/ARdw2HLXBOI7O7uCIDZVag1xfc=
+283,284d213
+< gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15/go.mod h1:Co6ibVJAznAaIkqp8huTwlJQCZ016jof/cbN4VW5Yz0=
+< gopkg.in/errgo.v2 v2.1.0/go.mod h1:hNsd1EY+bozCKY1Ytp96fpM3vjJbqLJn88ws8XvfDNI=
+289,290c218,219
+< gopkg.in/olebedev/go-duktape.v3 v3.0.0-20200316214253-d7b0ff38cac9 h1:ITeyKbRetrVzqR3U1eY+ywgp7IBspGd1U/bkwd1gWu4=
+< gopkg.in/olebedev/go-duktape.v3 v3.0.0-20200316214253-d7b0ff38cac9/go.mod h1:uAJfkITjFhyEEuUfm7bsmCZRbW5WRq8s9EY8HZ6hCns=
+---
+> gopkg.in/olebedev/go-duktape.v3 v3.0.0-20190213234257-ec84240a7772 h1:hhsSf/5z74Ck/DJYc+R8zpq8KGm7uJvpdLRQED/IedA=
+> gopkg.in/olebedev/go-duktape.v3 v3.0.0-20190213234257-ec84240a7772/go.mod h1:uAJfkITjFhyEEuUfm7bsmCZRbW5WRq8s9EY8HZ6hCns=
+300,301d228
+< gopkg.in/yaml.v2 v2.2.4 h1:/eiJrUcujPVeJ3xlSWaiNi3uSVmDGBK1pDHUHAnao1I=
+< gopkg.in/yaml.v2 v2.2.4/go.mod h1:hI93XBmqTisBFMUTm0b8Fm+jr3Dg1NNxqwp+5A1VGuI=
+304,309d230
+< honnef.co/go/tools v0.0.1-2020.1.6 h1:W18jzjh8mfPez+AwGLxmOImucz/IFjpNlrKVnaj2YVc=
+< honnef.co/go/tools v0.0.1-2020.1.6/go.mod h1:pyyisuGw24ruLjrr1ddx39WE0y9OooInRzEYLhQB2YY=
+< mvdan.cc/gofumpt v0.0.0-20200927160801-5bfeb2e70dd6 h1:z+/YqapuV7VZPvBb3GYmuEJbA88M3PFUxaHilHYVCpQ=
+< mvdan.cc/gofumpt v0.0.0-20200927160801-5bfeb2e70dd6/go.mod h1:bzrjFmaD6+xqohD3KYP0H2FEuxknnBmyyOxdhLdaIws=
+< mvdan.cc/xurls/v2 v2.2.0 h1:NSZPykBXJFCetGZykLAxaL6SIpvbVy/UFEniIfHAa8A=
+< mvdan.cc/xurls/v2 v2.2.0/go.mod h1:EV1RMtya9D6G5DMYPGD8zTQzaHet6Jh8gFlRgGRJeO8=
+diff -r l2geth/interfaces.go ../go-ethereum/interfaces.go
+122,125d121
+< 
+< 	L1MessageSender *common.Address
+< 	L1BlockNumber   *big.Int
+< 	QueueOrigin     types.QueueOrigin
+diff -r l2geth/internal/ethapi/api.go ../go-ethereum/internal/ethapi/api.go
+30d29
+< 	"github.com/ethereum/go-ethereum/accounts/abi"
+47d45
+< 	"github.com/ethereum/go-ethereum/rollup/fees"
+53c51
+< 	defaultGasPrice = params.Wei * fees.TxGasPrice
+---
+> 	defaultGasPrice = params.GWei
+56,58d53
+< var errOVMUnsupported = errors.New("OVM: Unsupported RPC Method")
+< var bigDefaultGasPrice = new(big.Int).SetUint64(0)
+< 
+70c65
+< // GasPrice always returns 1 gwei. See `DoEstimateGas` below for context.
+---
+> // GasPrice returns a suggestion for a gas price.
+72c67,68
+< 	return (*hexutil.Big)(bigDefaultGasPrice), nil
+---
+> 	price, err := s.b.SuggestPrice(ctx)
+> 	return (*hexutil.Big)(price), err
+542c538
+< 	return (*hexutil.Big)(state.GetOVMBalance(address)), state.Error()
+---
+> 	return (*hexutil.Big)(state.GetBalance(address)), state.Error()
+561,572d556
+< // Result structs for GetStateDiffProof
+< type StateDiffProof struct {
+< 	Header   *HeaderMeta     `json:"header"`
+< 	Accounts []AccountResult `json:"accounts"`
+< }
+< type HeaderMeta struct {
+< 	Number    *big.Int    `json:"number"`
+< 	Hash      common.Hash `json:"hash"`
+< 	StateRoot common.Hash `json:"stateRoot"`
+< 	Timestamp uint64      `json:"timestamp"`
+< }
+< 
+752,780d735
+< func (s *PublicBlockChainAPI) GetBlockRange(ctx context.Context, startNumber rpc.BlockNumber, endNumber rpc.BlockNumber, fullTx bool) ([]map[string]interface{}, error) {
+< 	// Basic assertions about start and end block numbers.
+< 	if endNumber < startNumber {
+< 		return nil, fmt.Errorf("Start of block range (%d) is greater than end of block range (%d)", startNumber, endNumber)
+< 	}
+< 
+< 	// Assert that the number of blocks is < 1k (? configurable?).
+< 	if endNumber-startNumber > 1000 {
+< 		return nil, fmt.Errorf("Requested block range is too large (max is 1000, requested %d blocks)", endNumber-startNumber)
+< 	}
+< 
+< 	// Make sure the end exists. If start doesn't exist, will be caught immediately below.
+< 	if _, err := s.GetBlockByNumber(ctx, endNumber, fullTx); err != nil {
+< 		return nil, fmt.Errorf("End of requested block range (%d) does not exist: %w", endNumber, err)
+< 	}
+< 
+< 	// Create an empty output array.
+< 	blocks := make([]map[string]interface{}, 0)
+< 	// For each block in range, get block and append to array.
+< 	for number := startNumber; number <= endNumber; number++ {
+< 		block, err := s.GetBlockByNumber(ctx, number, fullTx)
+< 		if block == nil || err != nil {
+< 			return nil, err
+< 		}
+< 		blocks = append(blocks, block)
+< 	}
+< 	return blocks, nil
+< }
+< 
+875,877d829
+< 	blockNumber := header.Number
+< 	timestamp := new(big.Int).SetUint64(header.Time)
+< 
+879,904c831
+< 	var msg core.Message
+< 	msg = types.NewMessage(addr, args.To, 0, value, gas, gasPrice, data, false, &addr, nil, types.QueueOriginSequencer)
+< 	if vm.UsingOVM {
+< 		cfg := b.ChainConfig()
+< 		executionManager := cfg.StateDump.Accounts["OVM_ExecutionManager"]
+< 		stateManager := cfg.StateDump.Accounts["OVM_StateManager"]
+< 		block, err := b.BlockByNumber(ctx, rpc.BlockNumber(header.Number.Uint64()))
+< 		if err != nil {
+< 			return nil, 0, false, err
+< 		}
+< 		if block != nil {
+< 			txs := block.Transactions()
+< 			if header.Number.Uint64() != 0 {
+< 				if len(txs) != 1 {
+< 					return nil, 0, false, fmt.Errorf("block %d has more than 1 transaction", header.Number.Uint64())
+< 				}
+< 				tx := txs[0]
+< 				blockNumber = tx.L1BlockNumber()
+< 				timestamp = new(big.Int).SetUint64(tx.L1Timestamp())
+< 			}
+< 		}
+< 		msg, err = core.EncodeSimulatedMessage(msg, timestamp, blockNumber, executionManager, stateManager)
+< 		if err != nil {
+< 			return nil, 0, false, err
+< 		}
+< 	}
+---
+> 	msg := types.NewMessage(addr, args.To, 0, value, gas, gasPrice, data, false)
+933,937d859
+< 	if vm.UsingOVM {
+< 		evm.Context.EthCallSender = &addr
+< 		evm.Context.BlockNumber = blockNumber
+< 		evm.Context.Time = timestamp
+< 	}
+960,971c882
+< 	result, _, failed, err := DoCall(ctx, s.b, args, blockNrOrHash, accounts, vm.Config{}, 5*time.Second, s.b.RPCGasCap())
+< 	if err != nil {
+< 		return nil, err
+< 	}
+< 	if failed {
+< 		reason, errUnpack := abi.UnpackRevert(result)
+< 		err := errors.New("execution reverted")
+< 		if errUnpack == nil {
+< 			err = fmt.Errorf("execution reverted: %v", reason)
+< 		}
+< 		return (hexutil.Bytes)(result), err
+< 	}
+---
+> 	result, _, _, err := DoCall(ctx, s.b, args, blockNrOrHash, accounts, vm.Config{}, 5*time.Second, s.b.RPCGasCap())
+975,979d885
+< // Optimism note: The gasPrice in Optimism is modified to always return 1 gwei. We
+< // use the gasLimit field to communicate the entire user fee. This is done for
+< // for compatibility reasons with the existing Ethereum toolchain, so that the user
+< // fees can compensate for the additional costs the sequencer pays for publishing the
+< // transaction calldata
+981,985d886
+< 	// 1. get the gas that would be used by the transaction
+< 	return legacyDoEstimateGas(ctx, b, args, blockNrOrHash, gasCap)
+< }
+< 
+< func legacyDoEstimateGas(ctx context.Context, b Backend, args CallArgs, blockNrOrHash rpc.BlockNumberOrHash, gasCap *big.Int) (hexutil.Uint64, error) {
+1021c922
+< 	executable := func(gas uint64) (bool, []byte) {
+---
+> 	executable := func(gas uint64) bool {
+1024c925
+< 		res, _, failed, err := DoCall(ctx, b, args, blockNrOrHash, nil, vm.Config{}, 0, gasCap)
+---
+> 		_, _, failed, err := DoCall(ctx, b, args, blockNrOrHash, nil, vm.Config{}, 0, gasCap)
+1026c927
+< 			return false, res
+---
+> 			return false
+1028c929
+< 		return true, res
+---
+> 		return true
+1033,1035c934
+< 		ok, _ := executable(mid)
+< 
+< 		if !ok {
+---
+> 		if !executable(mid) {
+1043,1053c942,943
+< 		ok, res := executable(hi)
+< 		if !ok {
+< 			if len(res) >= 4 && bytes.Equal(res[:4], abi.RevertSelector) {
+< 				reason, errUnpack := abi.UnpackRevert(res)
+< 				err := errors.New("execution reverted")
+< 				if errUnpack == nil {
+< 					err = fmt.Errorf("execution reverted: %v", reason)
+< 				}
+< 				return 0, err
+< 			}
+< 			return 0, fmt.Errorf("gas required exceeds allowance (%d)", cap)
+---
+> 		if !executable(hi) {
+> 			return 0, fmt.Errorf("gas required exceeds allowance (%d) or always failing transaction", cap)
+1060,1061c950
+< // given transaction against the current pending block. This is modified to
+< // encode the fee in wei as gas price is always 1
+---
+> // given transaction against the current pending block.
+1067,1081d955
+< // EstimateExecutionGas returns an estimate of the amount of gas needed to execute the
+< // given transaction against the current pending block.
+< func (s *PublicBlockChainAPI) EstimateExecutionGas(ctx context.Context, args CallArgs, round *bool) (hexutil.Uint64, error) {
+< 	blockNrOrHash := rpc.BlockNumberOrHashWithNumber(rpc.PendingBlockNumber)
+< 	estimate, err := legacyDoEstimateGas(ctx, s.b, args, blockNrOrHash, s.b.RPCGasCap())
+< 	if err != nil {
+< 		return estimate, err
+< 	}
+< 	if round != nil && *round {
+< 		rounded := fees.Ceilmod(new(big.Int).SetUint64(uint64(estimate)), fees.BigTenThousand)
+< 		estimate = (hexutil.Uint64)(rounded.Uint64())
+< 	}
+< 	return estimate, nil
+< }
+< 
+1239,1246d1112
+< 	QueueOrigin      string          `json:"queueOrigin"`
+< 	TxType           string          `json:"txType"`
+< 	L1TxOrigin       *common.Address `json:"l1TxOrigin"`
+< 	L1BlockNumber    *hexutil.Big    `json:"l1BlockNumber"`
+< 	L1Timestamp      hexutil.Uint64  `json:"l1Timestamp"`
+< 	Index            *hexutil.Uint64 `json:"index"`
+< 	QueueIndex       *hexutil.Uint64 `json:"queueIndex"`
+< 	RawTransaction   hexutil.Bytes   `json:"rawTransaction"`
+1277,1296d1142
+< 
+< 	if meta := tx.GetMeta(); meta != nil {
+< 		result.RawTransaction = meta.RawTransaction
+< 		result.L1TxOrigin = meta.L1MessageSender
+< 		result.L1Timestamp = (hexutil.Uint64)(meta.L1Timestamp)
+< 		if meta.L1BlockNumber != nil {
+< 			result.L1BlockNumber = (*hexutil.Big)(meta.L1BlockNumber)
+< 		}
+< 
+< 		result.QueueOrigin = fmt.Sprint(meta.QueueOrigin)
+< 
+< 		if meta.Index != nil {
+< 			index := (hexutil.Uint64)(*meta.Index)
+< 			result.Index = &index
+< 		}
+< 		if meta.QueueIndex != nil {
+< 			queueIndex := (hexutil.Uint64)(*meta.QueueIndex)
+< 			result.QueueIndex = &queueIndex
+< 		}
+< 	}
+1418d1263
+< 
+1527,1529d1371
+< 
+< 	L1BlockNumber   *big.Int        `json:"l1BlockNumber"`
+< 	L1MessageSender *common.Address `json:"l1MessageSender"`
+1600,1610c1442,1444
+< 		tx := types.NewContractCreation(uint64(*args.Nonce), (*big.Int)(args.Value), uint64(*args.Gas), (*big.Int)(args.GasPrice), input)
+< 		raw, _ := rlp.EncodeToBytes(tx)
+< 		txMeta := types.NewTransactionMeta(args.L1BlockNumber, 0, nil, types.QueueOriginSequencer, nil, nil, raw)
+< 		tx.SetTransactionMeta(txMeta)
+< 		return tx
+< 	}
+< 	tx := types.NewTransaction(uint64(*args.Nonce), *args.To, (*big.Int)(args.Value), uint64(*args.Gas), (*big.Int)(args.GasPrice), input)
+< 	raw, _ := rlp.EncodeToBytes(tx)
+< 	txMeta := types.NewTransactionMeta(args.L1BlockNumber, 0, args.L1MessageSender, types.QueueOriginSequencer, nil, nil, raw)
+< 	tx.SetTransactionMeta(txMeta)
+< 	return tx
+---
+> 		return types.NewContractCreation(uint64(*args.Nonce), (*big.Int)(args.Value), uint64(*args.Gas), (*big.Int)(args.GasPrice), input)
+> 	}
+> 	return types.NewTransaction(uint64(*args.Nonce), *args.To, (*big.Int)(args.Value), uint64(*args.Gas), (*big.Int)(args.GasPrice), input)
+1615,1617d1448
+< 	if !tx.Protected() {
+< 		return common.Hash{}, errors.New("Cannot submit unprotected transaction")
+< 	}
+1638,1640d1468
+< 	if vm.UsingOVM {
+< 		return common.Hash{}, errOVMUnsupported
+< 	}
+1673,1675d1500
+< 	if vm.UsingOVM {
+< 		return nil, errOVMUnsupported
+< 	}
+1692,1699d1516
+< 	if s.b.IsVerifier() {
+< 		return common.Hash{}, errors.New("Cannot send raw transaction in verifier mode")
+< 	}
+< 
+< 	if s.b.IsSyncing() {
+< 		return common.Hash{}, errors.New("Cannot send raw transaction while syncing")
+< 	}
+< 
+1704,1706d1520
+< 	// L1Timestamp and L1BlockNumber will be set right before execution
+< 	txMeta := types.NewTransactionMeta(nil, 0, nil, types.QueueOriginSequencer, nil, nil, encodedTx)
+< 	tx.SetTransactionMeta(txMeta)
+1720,1722d1533
+< 	if vm.UsingOVM {
+< 		return nil, errOVMUnsupported
+< 	}
+1748,1750d1558
+< 	if vm.UsingOVM {
+< 		return nil, errOVMUnsupported
+< 	}
+1845,1947d1652
+< // PublicRollupAPI is the collection of Ethereum APIs specific to the rollup
+< // functionality.
+< type PublicRollupAPI struct {
+< 	b Backend
+< }
+< 
+< // NewPublicRollupAPI creates a new API definition for the rollup methods of the
+< // Ethereum service.
+< func NewPublicRollupAPI(b Backend) *PublicRollupAPI {
+< 	return &PublicRollupAPI{b: b}
+< }
+< 
+< // TODO: deduplicate this
+< type EthContext struct {
+< 	BlockNumber uint64 `json:"blockNumber"`
+< 	Timestamp   uint64 `json:"timestamp"`
+< }
+< 
+< // RollupContext represents the height of the rollup.
+< // Index is the last processed CanonicalTransactionChain index
+< // QueueIndex is the last processed `enqueue` index
+< // VerifiedIndex is the last processed CTC index that was batched
+< type RollupContext struct {
+< 	Index         uint64 `json:"index"`
+< 	QueueIndex    uint64 `json:"queueIndex"`
+< 	VerifiedIndex uint64 `json:"verifiedIndex"`
+< }
+< 
+< type rollupInfo struct {
+< 	Mode          string        `json:"mode"`
+< 	Syncing       bool          `json:"syncing"`
+< 	EthContext    EthContext    `json:"ethContext"`
+< 	RollupContext RollupContext `json:"rollupContext"`
+< }
+< 
+< func (api *PublicRollupAPI) GetInfo(ctx context.Context) rollupInfo {
+< 	mode := "sequencer"
+< 	if v := api.b.IsVerifier(); v {
+< 		mode = "verifier"
+< 	}
+< 	syncing := api.b.IsSyncing()
+< 	bn, ts := api.b.GetEthContext()
+< 	index, queueIndex, verifiedIndex := api.b.GetRollupContext()
+< 
+< 	return rollupInfo{
+< 		Mode:    mode,
+< 		Syncing: syncing,
+< 		EthContext: EthContext{
+< 			BlockNumber: bn,
+< 			Timestamp:   ts,
+< 		},
+< 		RollupContext: RollupContext{
+< 			Index:         index,
+< 			QueueIndex:    queueIndex,
+< 			VerifiedIndex: verifiedIndex,
+< 		},
+< 	}
+< }
+< 
+< type gasPrices struct {
+< 	L1GasPrice *hexutil.Big `json:"l1GasPrice"`
+< 	L2GasPrice *hexutil.Big `json:"l2GasPrice"`
+< }
+< 
+< // GasPrices returns the L1 and L2 gas price known by the node
+< func (api *PublicRollupAPI) GasPrices(ctx context.Context) (*gasPrices, error) {
+< 	l1GasPrice, err := api.b.SuggestL1GasPrice(ctx)
+< 	if err != nil {
+< 		return nil, err
+< 	}
+< 	l2GasPrice, err := api.b.SuggestL2GasPrice(ctx)
+< 	if err != nil {
+< 		return nil, err
+< 	}
+< 	return &gasPrices{
+< 		L1GasPrice: (*hexutil.Big)(l1GasPrice),
+< 		L2GasPrice: (*hexutil.Big)(l2GasPrice),
+< 	}, nil
+< }
+< 
+< // PrivatelRollupAPI provides private RPC methods to control the sequencer.
+< // These methods can be abused by external users and must be considered insecure for use by untrusted users.
+< type PrivateRollupAPI struct {
+< 	b Backend
+< }
+< 
+< // NewPrivateRollupAPI creates a new API definition for the rollup methods of the
+< // Ethereum service.
+< func NewPrivateRollupAPI(b Backend) *PrivateRollupAPI {
+< 	return &PrivateRollupAPI{b: b}
+< }
+< 
+< // SetL1GasPrice sets the gas price to be used when quoting calldata publishing costs
+< // to users
+< func (api *PrivateRollupAPI) SetL1GasPrice(ctx context.Context, gasPrice hexutil.Big) error {
+< 	return api.b.SetL1GasPrice(ctx, (*big.Int)(&gasPrice))
+< }
+< 
+< // SetL2GasPrice sets the gas price to be used when executing transactions on
+< func (api *PrivateRollupAPI) SetL2GasPrice(ctx context.Context, gasPrice hexutil.Big) error {
+< 	return api.b.SetL2GasPrice(ctx, (*big.Int)(&gasPrice))
+< }
+< 
+2068,2112d1772
+< }
+< 
+< func (api *PrivateDebugAPI) IngestTransactions(txs []*RPCTransaction) error {
+< 	transactions := make([]*types.Transaction, len(txs))
+< 
+< 	for i, tx := range txs {
+< 		nonce := uint64(tx.Nonce)
+< 		value := tx.Value.ToInt()
+< 		gasLimit := uint64(tx.Gas)
+< 		gasPrice := tx.GasPrice.ToInt()
+< 		data := tx.Input
+< 		l1BlockNumber := tx.L1BlockNumber.ToInt()
+< 		l1Timestamp := uint64(tx.L1Timestamp)
+< 		rawTransaction := tx.RawTransaction
+< 
+< 		var queueOrigin types.QueueOrigin
+< 		switch tx.QueueOrigin {
+< 		case "sequencer":
+< 			queueOrigin = types.QueueOriginSequencer
+< 		case "l1":
+< 			queueOrigin = types.QueueOriginL1ToL2
+< 		default:
+< 			return fmt.Errorf("Transaction with unknown queue origin: %s", tx.TxType)
+< 		}
+< 
+< 		var transaction *types.Transaction
+< 		if tx.To == nil {
+< 			transaction = types.NewContractCreation(nonce, value, gasLimit, gasPrice, data)
+< 		} else {
+< 			transaction = types.NewTransaction(nonce, *tx.To, value, gasLimit, gasPrice, data)
+< 		}
+< 
+< 		meta := types.TransactionMeta{
+< 			L1BlockNumber:   l1BlockNumber,
+< 			L1Timestamp:     l1Timestamp,
+< 			L1MessageSender: tx.L1TxOrigin,
+< 			QueueOrigin:     queueOrigin,
+< 			Index:           (*uint64)(tx.Index),
+< 			QueueIndex:      (*uint64)(tx.QueueIndex),
+< 			RawTransaction:  rawTransaction,
+< 		}
+< 		transaction.SetTransactionMeta(&meta)
+< 		transactions[i] = transaction
+< 	}
+< 	return api.b.IngestTransactions(transactions)
+diff -r l2geth/internal/ethapi/backend.go ../go-ethereum/internal/ethapi/backend.go
+87,98d86
+< 
+< 	// Optimism-specific API
+< 	IsVerifier() bool
+< 	IsSyncing() bool
+< 	GetEthContext() (uint64, uint64)
+< 	GetRollupContext() (uint64, uint64, uint64)
+< 	GasLimit() uint64
+< 	SuggestL1GasPrice(ctx context.Context) (*big.Int, error)
+< 	SetL1GasPrice(context.Context, *big.Int) error
+< 	SuggestL2GasPrice(context.Context) (*big.Int, error)
+< 	SetL2GasPrice(context.Context, *big.Int) error
+< 	IngestTransactions([]*types.Transaction) error
+119,127d106
+< 		}, {
+< 			Namespace: "rollup",
+< 			Version:   "1.0",
+< 			Service:   NewPublicRollupAPI(apiBackend),
+< 			Public:    true,
+< 		}, {
+< 			Namespace: "rollup_personal",
+< 			Version:   "1.0",
+< 			Service:   NewPrivateRollupAPI(apiBackend),
+diff -r l2geth/les/api_backend.go ../go-ethereum/les/api_backend.go
+48,71d47
+< func (b *LesApiBackend) IsVerifier() bool {
+< 	return false
+< }
+< 
+< func (b *LesApiBackend) GasLimit() uint64 {
+< 	panic("not implemented")
+< }
+< 
+< func (b *LesApiBackend) GetEthContext() (uint64, uint64) {
+< 	return 0, 0
+< }
+< 
+< func (b *LesApiBackend) GetRollupContext() (uint64, uint64, uint64) {
+< 	return 0, 0, 0
+< }
+< 
+< func (b *LesApiBackend) IsSyncing() bool {
+< 	return false
+< }
+< 
+< func (b *LesApiBackend) GetLatestEth1Data() (common.Hash, uint64) {
+< 	return common.Hash{}, 0
+< }
+< 
+85,88d60
+< func (b *LesApiBackend) IngestTransactions([]*types.Transaction) error {
+< 	panic("not implemented")
+< }
+< 
+208,211d179
+< func (b *LesApiBackend) SetTimestamp(timestamp int64) {
+< 	// Intentionally empty because this is not needed for LightChain
+< }
+< 
+281,300d248
+< }
+< 
+< // NB: Non sequencer nodes cannot suggest L1 gas prices.
+< func (b *LesApiBackend) SuggestL1GasPrice(ctx context.Context) (*big.Int, error) {
+< 	panic("SuggestL1GasPrice not implemented")
+< }
+< 
+< // NB: Non sequencer nodes cannot suggest L2 execution gas prices.
+< func (b *LesApiBackend) SuggestL2GasPrice(ctx context.Context) (*big.Int, error) {
+< 	panic("SuggestL2GasPrice not implemented")
+< }
+< 
+< // NB: Non sequencer nodes cannot set L1 gas prices.
+< func (b *LesApiBackend) SetL1GasPrice(ctx context.Context, gasPrice *big.Int) error {
+< 	panic("SetDataPrice is not implemented")
+< }
+< 
+< // NB: Non sequencer nodes cannot set L2 execution prices.
+< func (b *LesApiBackend) SetL2GasPrice(ctx context.Context, gasPrice *big.Int) error {
+< 	panic("SetExecutionPrice is not implemented")
+diff -r l2geth/les/handler_test.go ../go-ethereum/les/handler_test.go
+54,55d53
+< 	t.Skip("SKIPPING (OVM)")
+< 
+186,187d183
+< 	t.Skip("SKIPPING (OVM)")
+< 
+266,267d261
+< 	t.Skip("SKIPPING (OVM)")
+< 
+299,300d292
+< 	t.Skip("SKIPPING (OVM)")
+< 
+326,327d317
+< 	t.Skip("SKIPPING (OVM)")
+< 
+356,357d345
+< 	t.Skip("SKIPPING (OVM)")
+< 
+394,395d381
+< 	t.Skip("SKIPPING (OVM)")
+< 
+433,434d418
+< 	t.Skip("SKIPPING (OVM)")
+< 
+484,485d467
+< 	t.Skip("SKIPPING (OVM)")
+< 
+535,536d516
+< 	t.Skip("SKIPPING (OVM)")
+< 
+diff -r l2geth/les/odr_test.go ../go-ethereum/les/odr_test.go
+131c131
+< 				msg := callmsg{types.NewMessage(from.Address(), &testContractAddr, 0, new(big.Int), 100000, new(big.Int), data, false, nil, nil, types.QueueOriginSequencer)}
+---
+> 				msg := callmsg{types.NewMessage(from.Address(), &testContractAddr, 0, new(big.Int), 100000, new(big.Int), data, false)}
+145c145
+< 			msg := callmsg{types.NewMessage(bankAddr, &testContractAddr, 0, new(big.Int), 100000, new(big.Int), data, false, nil, nil, types.QueueOriginSequencer)}
+---
+> 			msg := callmsg{types.NewMessage(bankAddr, &testContractAddr, 0, new(big.Int), 100000, new(big.Int), data, false)}
+185,186d184
+< 	t.Skip("OVM breaks this with `insufficient balance for transfer`, probably because transfers don't work.")
+< 
+diff -r l2geth/les/request_test.go ../go-ethereum/les/request_test.go
+81,82d80
+< 	t.Skip("OVM breaks this with `insufficient balance for transfer`, probably because transfers don't work.")
+< 
+diff -r l2geth/les/sync_test.go ../go-ethereum/les/sync_test.go
+44,45d43
+< 	t.Skip("OVM breaks this with `insufficient balance for transfer`, probably because transfers don't work.")
+< 
+138,139d135
+< 	t.Skip("OVM breaks this with `insufficient balance for transfer`, probably because transfers don't work.")
+< 
+diff -r l2geth/light/odr_test.go ../go-ethereum/light/odr_test.go
+197c197
+< 		msg := callmsg{types.NewMessage(testBankAddress, &testContractAddr, 0, new(big.Int), 1000000, new(big.Int), data, false, nil, nil, types.QueueOriginSequencer)}
+---
+> 		msg := callmsg{types.NewMessage(testBankAddress, &testContractAddr, 0, new(big.Int), 1000000, new(big.Int), data, false)}
+252,253d251
+< 	t.Skip("OVM breaks this with `insufficient balance for transfer`, probably because transfers don't work.")
+< 
+diff -r l2geth/light/trie_test.go ../go-ethereum/light/trie_test.go
+36,37d35
+< 	t.Skip("OVM breaks this with `account does not exist`, probably because of the genesis state.")
+< 
+diff -r l2geth/light/txpool.go ../go-ethereum/light/txpool.go
+449c449
+< // AddBatch adds all valid transactions to the pool and passes them to
+---
+> // AddTransactions adds all valid transactions to the pool and passes them to
+451c451
+< func (pool *TxPool) AddBatch(ctx context.Context, txs []*types.Transaction) []error {
+---
+> func (pool *TxPool) AddBatch(ctx context.Context, txs []*types.Transaction) {
+456,457c456
+< 	errors := make([]error, len(txs))
+< 	for i, tx := range txs {
+---
+> 	for _, tx := range txs {
+460,461d458
+< 		} else {
+< 			errors[i] = err
+467d463
+< 	return errors
+diff -r l2geth/miner/miner.go ../go-ethereum/miner/miner.go
+36d35
+< 	"github.com/ethereum/go-ethereum/rollup"
+43d41
+< 	SyncService() *rollup.SyncService
+diff -r l2geth/miner/stress_clique.go ../go-ethereum/miner/stress_clique.go
+121c121
+< 		tx, err := types.SignTx(types.NewTransaction(nonces[index], crypto.PubkeyToAddress(faucets[index].PublicKey), new(big.Int), 21000, big.NewInt(100000000000), nil, nil), types.HomesteadSigner{}, faucets[index])
+---
+> 		tx, err := types.SignTx(types.NewTransaction(nonces[index], crypto.PubkeyToAddress(faucets[index].PublicKey), new(big.Int), 21000, big.NewInt(100000000000), nil), types.HomesteadSigner{}, faucets[index])
+diff -r l2geth/miner/stress_ethash.go ../go-ethereum/miner/stress_ethash.go
+117c117
+< 		tx, err := types.SignTx(types.NewTransaction(nonces[index], crypto.PubkeyToAddress(faucets[index].PublicKey), new(big.Int), 21000, big.NewInt(100000000000+rand.Int63n(65536)), nil, nil), types.HomesteadSigner{}, faucets[index])
+---
+> 		tx, err := types.SignTx(types.NewTransaction(nonces[index], crypto.PubkeyToAddress(faucets[index].PublicKey), new(big.Int), 21000, big.NewInt(100000000000+rand.Int63n(65536)), nil), types.HomesteadSigner{}, faucets[index])
+diff -r l2geth/miner/unconfirmed.go ../go-ethereum/miner/unconfirmed.go
+83a84,85
+> 	// Display a log for the user to notify of a new mined block unconfirmed
+> 	log.Info("🔨 mined potential block", "number", index, "hash", hash)
+105c107
+< 			// Do nothing
+---
+> 			log.Info("🔗 block reached canonical chain", "number", next.index, "hash", next.hash)
+diff -r l2geth/miner/worker.go ../go-ethereum/miner/worker.go
+22d21
+< 	"fmt"
+143,144d141
+< 	rollupCh     chan core.NewTxsEvent
+< 	rollupSub    event.Subscription
+199d195
+< 		rollupCh:           make(chan core.NewTxsEvent, 1),
+212,214d207
+< 	// channel directly to the miner
+< 	worker.rollupSub = eth.SyncService().SubscribeNewTxsEvent(worker.rollupCh)
+< 
+354a348
+> 			timestamp = time.Now().Unix()
+357,365c351,354
+< 		// Remove this code for the OVM implementation. It is responsible for
+< 		// cleaning up memory with the call to `clearPending`, so be sure to
+< 		// call that in the new hot code path
+< 		/*
+< 			case <-w.chainHeadCh:
+< 				clearPending(head.Block.NumberU64())
+< 				timestamp = time.Now().Unix()
+< 				commit(false, commitInterruptNewHead)
+< 		*/
+---
+> 		case head := <-w.chainHeadCh:
+> 			clearPending(head.Block.NumberU64())
+> 			timestamp = time.Now().Unix()
+> 			commit(false, commitInterruptNewHead)
+419d407
+< 	defer w.rollupSub.Unsubscribe()
+464,510d451
+< 		// Read from the sync service and mine single txs
+< 		// as they come. Wait for the block to be mined before
+< 		// reading the next tx from the channel when there is
+< 		// not an error processing the transaction.
+< 		case ev := <-w.rollupCh:
+< 			if len(ev.Txs) == 0 {
+< 				log.Warn("No transaction sent to miner from syncservice")
+< 				continue
+< 			}
+< 			tx := ev.Txs[0]
+< 			log.Debug("Attempting to commit rollup transaction", "hash", tx.Hash().Hex())
+< 			// Build the block with the tx and add it to the chain. This will
+< 			// send the block through the `taskCh` and then through the
+< 			// `resultCh` which ultimately adds the block to the blockchain
+< 			// through `bc.WriteBlockWithState`
+< 			if err := w.commitNewTx(tx); err == nil {
+< 				// `chainHeadCh` is written to when a new block is added to the
+< 				// tip of the chain. Reading from the channel will block until
+< 				// the ethereum block is added to the chain downstream of `commitNewTx`.
+< 				// This will result in a deadlock if we call `commitNewTx` with
+< 				// a transaction that cannot be added to the chain, so this
+< 				// should be updated to a select statement that can also listen
+< 				// for errors.
+< 				head := <-w.chainHeadCh
+< 				txs := head.Block.Transactions()
+< 				if len(txs) == 0 {
+< 					log.Warn("No transactions in block")
+< 					continue
+< 				}
+< 				txn := txs[0]
+< 				height := head.Block.Number().Uint64()
+< 				log.Debug("Miner got new head", "height", height, "block-hash", head.Block.Hash().Hex(), "tx-hash", txn.Hash().Hex(), "tx-hash", tx.Hash().Hex())
+< 
+< 				// Prevent memory leak by cleaning up pending tasks
+< 				// This is mostly copied from the `newWorkLoop`
+< 				// `clearPending` function and must be called
+< 				// periodically to clean up pending tasks. This
+< 				// function was originally called in `newWorkLoop`
+< 				// but the OVM implementation no longer uses that code path.
+< 				w.pendingMu.Lock()
+< 				for h := range w.pendingTasks {
+< 					delete(w.pendingTasks, h)
+< 				}
+< 				w.pendingMu.Unlock()
+< 			} else {
+< 				log.Debug("Problem committing transaction: %w", err)
+< 			}
+659a601,602
+> 			log.Info("Successfully sealed new block", "number", block.Number(), "sealhash", sealhash, "hash", hash,
+> 				"elapsed", common.PrettyDuration(time.Since(task.createdAt)))
+756,759d698
+< 	// Make sure there's only one tx per block
+< 	if w.current != nil && len(w.current.txs) > 0 {
+< 		return nil, core.ErrGasLimitReached
+< 	}
+816d754
+< 
+887,951d824
+< // commitNewTx is an OVM addition that mines a block with a single tx in it.
+< // It needs to return an error in the case there is an error to prevent waiting
+< // on reading from a channel that is written to when a new block is added to the
+< // chain.
+< func (w *worker) commitNewTx(tx *types.Transaction) error {
+< 	w.mu.RLock()
+< 	defer w.mu.RUnlock()
+< 	tstart := time.Now()
+< 
+< 	parent := w.chain.CurrentBlock()
+< 	num := parent.Number()
+< 
+< 	// Preserve liveliness as best as possible. Must panic on L1 to L2
+< 	// transactions as the timestamp cannot be malleated
+< 	if parent.Time() > tx.L1Timestamp() {
+< 		log.Error("Monotonicity violation", "index", num)
+< 		if tx.QueueOrigin() == types.QueueOriginSequencer {
+< 			tx.SetL1Timestamp(parent.Time())
+< 			prev := parent.Transactions()
+< 			if len(prev) == 1 {
+< 				tx.SetL1BlockNumber(prev[0].L1BlockNumber().Uint64())
+< 			} else {
+< 				log.Error("Cannot recover L1 Blocknumber")
+< 			}
+< 		} else {
+< 			log.Error("Cannot recover from monotonicity violation")
+< 		}
+< 	}
+< 
+< 	// Fill in the index field in the tx meta if it is `nil`.
+< 	// This should only ever happen in the case of the sequencer
+< 	// receiving a queue origin sequencer transaction. The verifier
+< 	// should always receive transactions with an index as they
+< 	// have already been confirmed in the canonical transaction chain.
+< 	// Use the parent's block number because the CTC is 0 indexed.
+< 	if meta := tx.GetMeta(); meta.Index == nil {
+< 		index := num.Uint64()
+< 		meta.Index = &index
+< 		tx.SetTransactionMeta(meta)
+< 	}
+< 	header := &types.Header{
+< 		ParentHash: parent.Hash(),
+< 		Number:     new(big.Int).Add(num, common.Big1),
+< 		GasLimit:   w.config.GasFloor,
+< 		Extra:      w.extra,
+< 		Time:       tx.L1Timestamp(),
+< 	}
+< 	if err := w.engine.Prepare(w.chain, header); err != nil {
+< 		return fmt.Errorf("Failed to prepare header for mining: %w", err)
+< 	}
+< 	// Could potentially happen if starting to mine in an odd state.
+< 	err := w.makeCurrent(parent, header)
+< 	if err != nil {
+< 		return fmt.Errorf("Failed to create mining context: %w", err)
+< 	}
+< 	transactions := make(map[common.Address]types.Transactions)
+< 	acc, _ := types.Sender(w.current.signer, tx)
+< 	transactions[acc] = types.Transactions{tx}
+< 	txs := types.NewTransactionsByPriceAndNonce(w.current.signer, transactions)
+< 	if w.commitTransactions(txs, w.coinbase, nil) {
+< 		return errors.New("Cannot commit transaction in miner")
+< 	}
+< 	return w.commit(nil, w.fullTaskHook, true, tstart)
+< }
+< 
+959a833,842
+> 	if parent.Time() >= uint64(timestamp) {
+> 		timestamp = int64(parent.Time() + 1)
+> 	}
+> 	// this will ensure we're not going off too far in the future
+> 	if now := time.Now().Unix(); timestamp > now+1 {
+> 		wait := time.Duration(timestamp-now) * time.Second
+> 		log.Info("Mining too far in the future", "wait", common.PrettyDuration(wait))
+> 		time.Sleep(wait)
+> 	}
+> 
+964c847
+< 		GasLimit:   w.config.GasFloor,
+---
+> 		GasLimit:   core.CalcGasLimit(parent, w.config.GasFloor, w.config.GasCeil),
+1087,1088d969
+< 		// Writing to the taskCh will result in the block being added to the
+< 		// chain via the resultCh
+1099,1109c980,981
+< 			txs := block.Transactions()
+< 			if len(txs) != 1 {
+< 				return fmt.Errorf("Block created with not %d transactions at %d", len(txs), block.NumberU64())
+< 			}
+< 			tx := txs[0]
+< 			bn := tx.L1BlockNumber()
+< 			if bn == nil {
+< 				bn = new(big.Int)
+< 			}
+< 			log.Info("New block", "index", block.Number().Uint64()-uint64(1), "l1-timestamp", tx.L1Timestamp(), "l1-blocknumber", bn.Uint64(), "tx-hash", tx.Hash().Hex(),
+< 				"queue-orign", tx.QueueOrigin(), "gas", block.GasUsed(), "fees", feesEth, "elapsed", common.PrettyDuration(time.Since(start)))
+---
+> 			log.Info("Commit new mining work", "number", block.Number(), "sealhash", w.engine.SealHash(block.Header()),
+> 				"uncles", len(uncles), "txs", w.current.tcount, "gas", block.GasUsed(), "fees", feesEth, "elapsed", common.PrettyDuration(time.Since(start)))
+diff -r l2geth/miner/worker_test.go ../go-ethereum/miner/worker_test.go
+40d39
+< 	"github.com/ethereum/go-ethereum/rollup"
+101,102d99
+< 
+< 	syncService *rollup.SyncService
+150,151d146
+< 
+< 		syncService: &rollup.SyncService{},
+158,159d152
+< func (b *testWorkerBackend) SyncService() *rollup.SyncService { return b.syncService }
+< 
+270,271d262
+< 	t.Skip("OVM breaks this with `account balance mismatch`, probably because transfers don't work.")
+< 
+378,379d368
+< 	t.Skip("OVM breaks this with `account balance mismatch`, probably because transfers don't work.")
+< 
+390,404d378
+< 			// The first task is an empty task, the second
+< 			// one has 1 pending tx, the third one has 2 txs
+< 			if taskIndex == 2 {
+< 				receiptLen, balance := 1, big.NewInt(1000)
+< 				if len(task.receipts) != receiptLen {
+< 					t.Errorf("receipt number mismatch: have %d, want %d", len(task.receipts), receiptLen)
+< 				}
+< 				if task.state.GetBalance(testUserAddress).Cmp(balance) != 0 {
+< 					t.Errorf("account balance mismatch: have %d, want %d", task.state.GetBalance(testUserAddress), balance)
+< 				}
+< 			}
+< 			taskCh <- struct{}{}
+< 			taskIndex += 1
+< 		}
+< 		if task.block.NumberU64() == 2 {
+diff -r l2geth/mobile/android_test.go ../go-ethereum/mobile/android_test.go
+158d157
+< 	t.Skip("Skipping Android Test (OVM)")
+diff -r l2geth/mobile/types.go ../go-ethereum/mobile/types.go
+199a200,205
+> // NewContractCreation creates a new transaction for deploying a new contract with
+> // the given properties.
+> func NewContractCreation(nonce int64, amount *BigInt, gasLimit int64, gasPrice *BigInt, data []byte) *Transaction {
+> 	return &Transaction{types.NewContractCreation(uint64(nonce), amount.bigint, uint64(gasLimit), gasPrice.bigint, common.CopyBytes(data))}
+> }
+> 
+diff -r l2geth/node/config_test.go ../go-ethereum/node/config_test.go
+80d79
+< 	t.Skip("Skipping for now")
+diff -r l2geth/p2p/discv5/net.go ../go-ethereum/p2p/discv5/net.go
+640c640
+< 	log.Debug("shutting down")
+---
+> 	log.Debug(fmt.Sprintf("shutting down"))
+diff -r l2geth/p2p/discv5/node_test.go ../go-ethereum/p2p/discv5/node_test.go
+144c144
+< 		wantError: `missing protocol scheme`,
+---
+> 		wantError: `parse ://foo: missing protocol scheme`,
+Only in l2geth/: package.json
+diff -r l2geth/params/config.go ../go-ethereum/params/config.go
+26d25
+< 	"github.com/ethereum/go-ethereum/rollup/dump"
+219c218
+< 	AllEthashProtocolChanges = &ChainConfig{big.NewInt(108), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, nil, new(EthashConfig), nil, nil}
+---
+> 	AllEthashProtocolChanges = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, nil, new(EthashConfig), nil}
+226c225
+< 	AllCliqueProtocolChanges = &ChainConfig{big.NewInt(420), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, nil, nil, &CliqueConfig{Period: 0, Epoch: 30000}, nil}
+---
+> 	AllCliqueProtocolChanges = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, nil, nil, &CliqueConfig{Period: 0, Epoch: 30000}}
+228c227
+< 	TestChainConfig = &ChainConfig{big.NewInt(1), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, nil, new(EthashConfig), nil, nil}
+---
+> 	TestChainConfig = &ChainConfig{big.NewInt(1), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, nil, new(EthashConfig), nil}
+304,306d302
+< 
+< 	// OVM Specific
+< 	StateDump *dump.OvmDump `json:"-"`
+diff -r l2geth/params/protocol_params.go ../go-ethereum/params/protocol_params.go
+22,24c22,24
+< 	GasLimitBoundDivisor uint64 = 1024     // The bound divisor of the gas limit, used in update calculations.
+< 	MinGasLimit          uint64 = 4000000  // Minimum the gas limit may ever be.
+< 	GenesisGasLimit      uint64 = 12000000 // Gas limit of the Genesis block.
+---
+> 	GasLimitBoundDivisor uint64 = 1024    // The bound divisor of the gas limit, used in update calculations.
+> 	MinGasLimit          uint64 = 5000    // Minimum the gas limit may ever be.
+> 	GenesisGasLimit      uint64 = 4712388 // Gas limit of the Genesis block.
+111c111
+< 	MaxCodeSize = 2457600 // Maximum bytecode to permit for a contract
+---
+> 	MaxCodeSize = 24576 // Maximum bytecode to permit for a contract
+diff -r l2geth/README.md ../go-ethereum/README.md
+12,85c12,13
+< ## Optimism
+< 
+< The same codebase is used to run both the Sequencer and the Verifier. Runtime
+< configuration will determine the mode of operation. The configuration flags
+< can be configured using either environment variables or passed at runtime as
+< flags.
+< 
+< A prebuilt Docker image is available at `ethereumoptimism/go-ethereum`.
+< 
+< To compile the code, run:
+< ```
+< $ make geth
+< ```
+< 
+< ### Running a Sequencer
+< 
+< Running a sequencer requires the [Data Transport Layer](https://github.com/ethereum-optimism/data-transport-layer)
+< to be synced. The data transport layer is responsible for indexing transactions
+< from Layer One concurrently. The sequencer pulls in transactions from the data
+< transport layer and executes them. The URL of the data transport layer should be
+< used for the sequencer config option `--rollup.clienthttp`.
+< 
+< See the script `scripts/start.sh`. It sets many of the config options
+< and accepts CLI flags. For usage, run the command:
+< 
+< ```bash
+< $ ./scripts/start.sh -h
+< ```
+< 
+< This may be suitable for simple usecases, users that need more flexibility
+< with their configuration can run the command:
+< 
+< ```bash
+< $ USING_OVM=true ./build/bin/geth \
+<     --rollup.addressmanagerowneraddress $ADDRESS_MANAGER_OWNER_ADDRESS \
+<     --rollup.clienthttp $ROLLUP_CLIENT_HTTP \
+<     --rollup.pollinterval 3s \
+<     --eth1.networkid $LAYER1_NETWORK_ID \
+<     --eth1.chainid $LAYER1_CHAIN_ID \
+<     --eth1.l1standardbridgeaddress $ETH1_L1_STANDARD_BRIDGE_ADDRESS \
+<     --eth1.l1crossdomainmessengeraddress $ETH1_L1_CROSS_DOMAIN_MESSENGER_ADDRESS \
+<     --eth1.l1feewalletaddress $ETH1_L1_FEE_WALLET_ADDRESS \
+<     --eth1.addressresolveraddress $ETH1_ADDRESS_RESOLVER_ADDRESS \
+<     --eth1.ctcdeploymentheight $CTC_DEPLOY_HEIGHT \
+<     --eth1.syncservice \
+<     --rpc \
+<     --dev \
+<     --rpcaddr "0.0.0.0" \
+<     --rpccorsdomain '*' \
+<     --wsaddr "0.0.0.0" \
+<     --wsport 8546 \
+<     --wsorigins '*' \
+<     --networkid 420 \
+<     --rpcapi 'eth,net,rollup,web3' \
+<     --gasprice '0' \
+<     --targetgaslimit '8000000' \
+<     --nousb \
+<     --gcmode=archive \
+<     --ipcdisable
+< ```
+< 
+< The address manager owner address will be set in the layer two state at runtime.
+< 
+< To persist the database, pass the `--datadir` with a path to the directory for
+< the database to be persisted in. Without this flag, an in memory database will
+< be used. To tune the log level, use the `--verbosity` flag with an integer.
+< 
+< The initial state can be fetched via HTTPS using the flag `--rollup.statedumppath`.
+< State dumps are available via the [regenesis repository](https://github.com/ethereum-optimism/regenesis).
+< To use a different genesis state, pass in a path to one of the JSON files in the repository.
+< 
+< ### Running a Verifier
+< 
+< Add the flag `--rollup.verifier`
+---
+> Automated builds are available for stable releases and the unstable master branch. Binary
+> archives are published at https://geth.ethereum.org/downloads/.
+Only in l2geth/: rollup
+diff -r l2geth/rpc/client_test.go ../go-ethereum/rpc/client_test.go
+383c383
+< 	doTest(25000, true)
+---
+> 	doTest(23000, true)
+Only in l2geth/: scripts
+Only in ../go-ethereum/: SECURITY.md
+diff -r l2geth/signer/core/types.go ../go-ethereum/signer/core/types.go
+68d67
+< // TODO(mark): double check adding QueueOrigin to this won't break anything
+79,83c78
+< 	Input *hexutil.Bytes `json:"input"`
+< 
+< 	L1MessageSender *common.MixedcaseAddress `json:"l1MessageSender"`
+< 	L1BlockNumber   *big.Int                 `json:"l1BlockNumber"`
+< 	QueueOrigin     types.QueueOrigin        `json:"queueOrigin"`
+---
+> 	Input *hexutil.Bytes `json:"input,omitempty"`
+101,109c96,97
+< 	var l1MessageSender *common.Address = nil
+< 	if args.L1MessageSender != nil {
+< 		l1MessageSender = new(common.Address)
+< 		*l1MessageSender = args.L1MessageSender.Address()
+< 	}
+< 	var l1BlockNumber *big.Int = nil
+< 	if args.L1BlockNumber != nil {
+< 		l1BlockNumber = new(big.Int)
+< 		*l1BlockNumber = *args.L1BlockNumber
+---
+> 	if args.To == nil {
+> 		return types.NewContractCreation(uint64(args.Nonce), (*big.Int)(&args.Value), uint64(args.Gas), (*big.Int)(&args.GasPrice), input)
+111,115c99
+< 
+< 	tx := types.NewTransaction(uint64(args.Nonce), args.To.Address(), (*big.Int)(&args.Value), (uint64)(args.Gas), (*big.Int)(&args.GasPrice), input)
+< 	txMeta := types.NewTransactionMeta(l1BlockNumber, 0, l1MessageSender, args.QueueOrigin, nil, nil, nil)
+< 	tx.SetTransactionMeta(txMeta)
+< 	return tx
+---
+> 	return types.NewTransaction(uint64(args.Nonce), args.To.Address(), (*big.Int)(&args.Value), (uint64)(args.Gas), (*big.Int)(&args.GasPrice), input)
+diff -r l2geth/tests/block_test.go ../go-ethereum/tests/block_test.go
+20d19
+< 	"fmt"
+32,33d30
+< 	// Skip these tests because the OVM gas limit will be different
+< 	bt.skipLoad(`InvalidBlocks/bcInvalidHeaderTest/wrongGasLimit.json`)
+46,51d42
+< 	// OVM breaks these tests
+< 	bt.skipLoad(`^InvalidBlocks`)
+< 	bt.skipLoad(`^ValidBlocks`)
+< 	bt.skipLoad(`^TransitionTests`)
+< 	bt.skipLoad(`^randomStatetest391.json`)
+< 
+58d48
+< 			fmt.Println("******* NAME: ", name)
+diff -r l2geth/tests/state_test.go ../go-ethereum/tests/state_test.go
+47,49d46
+< 	// OVM changes break these tests
+< 	st.skipLoad(`^st`)
+< 
+diff -r l2geth/tests/state_test_util.go ../go-ethereum/tests/state_test_util.go
+282c282
+< 	msg := types.NewMessage(from, to, tx.Nonce, value, gasLimit, tx.GasPrice, data, true, nil, nil, types.QueueOriginSequencer)
+---
+> 	msg := types.NewMessage(from, to, tx.Nonce, value, gasLimit, tx.GasPrice, data, true)
+diff -r l2geth/tests/transaction_test.go ../go-ethereum/tests/transaction_test.go
+48d47
+< 	txt.skipLoad("^ttSignature/TransactionWithTooManyRLPElements.json")
+Only in ../go-ethereum/: .travis.yml
+diff -r l2geth/trie/trie.go ../go-ethereum/trie/trie.go
+166,168c166,177
+< 	_, n, err := t.insert(t.root, nil, k, valueNode(value))
+< 	if err != nil {
+< 		return err
+---
+> 	if len(value) != 0 {
+> 		_, n, err := t.insert(t.root, nil, k, valueNode(value))
+> 		if err != nil {
+> 			return err
+> 		}
+> 		t.root = n
+> 	} else {
+> 		_, n, err := t.delete(t.root, nil, k)
+> 		if err != nil {
+> 			return err
+> 		}
+> 		t.root = n
+170d178
+< 	t.root = n
+diff -r l2geth/trie/trie_test.go ../go-ethereum/trie/trie_test.go
+232,233d231
+< 	t.Skip("Skipping because empty doesn't delete")
+< 
+254,268d251
+< 	}
+< }
+< 
+< func TestEmptyValuesNoDelete(t *testing.T) {
+< 	trie := newEmpty()
+< 
+< 	updateString(trie, "shaman", "horse")
+< 	r := trie.Get([]byte("shaman"))
+< 	if !bytes.Equal(r, []byte("horse")) {
+< 		t.Fatalf("Trie get mismatch, expected horse, got %s", string(r))
+< 	}
+< 	updateString(trie, "shaman", "")
+< 	r2 := trie.Get([]byte("shaman"))
+< 	if !bytes.Equal(r2, []byte("")) {
+< 		t.Fatalf("Trie get mismatch, expected \"\", got %s", string(r2))
+diff -r l2geth/whisper/mailserver/mailserver.go ../go-ethereum/whisper/mailserver/mailserver.go
+30d29
+< 	"github.com/syndtr/goleveldb/leveldb/errors"
+74,76d72
+< 	if _, iscorrupted := err.(*errors.ErrCorrupted); iscorrupted {
+< 		s.db, err = leveldb.RecoverFile(path, nil)
+< 	}
+176c172
+< 		log.Warn("Failed to decrypt p2p request")
+---
+> 		log.Warn(fmt.Sprintf("Failed to decrypt p2p request"))
+188c184
+< 		log.Warn("Wrong signature of p2p request")
+---
+> 		log.Warn(fmt.Sprintf("Wrong signature of p2p request"))
+195c191
+< 		log.Warn("Undersized p2p request")
+---
+> 		log.Warn(fmt.Sprintf("Undersized p2p request"))
+200c196
+< 		log.Warn("Undersized bloom filter in p2p request")
+---
+> 		log.Warn(fmt.Sprintf("Undersized bloom filter in p2p request"))

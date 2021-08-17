@@ -876,32 +876,7 @@ func DoCall(ctx context.Context, b Backend, args CallArgs, blockNrOrHash rpc.Blo
 	timestamp := new(big.Int).SetUint64(header.Time)
 
 	// Create new call message
-	var msg core.Message
-	msg = types.NewMessage(addr, args.To, 0, value, gas, gasPrice, data, false, &addr, nil, types.QueueOriginSequencer)
-	if vm.UsingOVM {
-		cfg := b.ChainConfig()
-		executionManager := cfg.StateDump.Accounts["OVM_ExecutionManager"]
-		stateManager := cfg.StateDump.Accounts["OVM_StateManager"]
-		block, err := b.BlockByNumber(ctx, rpc.BlockNumber(header.Number.Uint64()))
-		if err != nil {
-			return nil, 0, false, err
-		}
-		if block != nil {
-			txs := block.Transactions()
-			if header.Number.Uint64() != 0 {
-				if len(txs) != 1 {
-					return nil, 0, false, fmt.Errorf("block %d has more than 1 transaction", header.Number.Uint64())
-				}
-				tx := txs[0]
-				blockNumber = tx.L1BlockNumber()
-				timestamp = new(big.Int).SetUint64(tx.L1Timestamp())
-			}
-		}
-		msg, err = core.EncodeSimulatedMessage(msg, timestamp, blockNumber, executionManager, stateManager)
-		if err != nil {
-			return nil, 0, false, err
-		}
-	}
+	msg := types.NewMessage(addr, args.To, 0, value, gas, gasPrice, data, false, &addr, nil, types.QueueOriginSequencer)
 
 	// Setup context so it may be cancelled the call has completed
 	// or, in case of unmetered gas, setup a context with a timeout.
