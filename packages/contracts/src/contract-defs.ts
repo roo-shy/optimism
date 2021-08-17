@@ -10,9 +10,9 @@ import {
 } from 'ethers'
 import { Interface } from 'ethers/lib/utils'
 
-export const getContractDefinition = (name: string, ovm?: boolean): any => {
+export const getContractDefinition = (name: string): any => {
   const match = glob.sync(
-    path.resolve(__dirname, `../artifacts${ovm ? '-ovm' : ''}`) +
+    path.resolve(__dirname, `../artifacts`) +
       `/**/${name.split('-').join(':')}.json`
   )
 
@@ -24,20 +24,18 @@ export const getContractDefinition = (name: string, ovm?: boolean): any => {
 }
 
 export const getContractInterface = (
-  name: string,
-  ovm?: boolean
+  name: string
 ): Interface => {
-  const definition = getContractDefinition(name, ovm)
+  const definition = getContractDefinition(name)
   return new ethers.utils.Interface(definition.abi)
 }
 
 export const getContractFactory = (
   name: string,
-  signer?: Signer,
-  ovm?: boolean
+  signer?: Signer
 ): ContractFactory => {
-  const definition = getContractDefinition(name, ovm)
-  const contractInterface = getContractInterface(name, ovm)
+  const definition = getContractDefinition(name)
+  const contractInterface = getContractInterface(name)
   return new ContractFactory(contractInterface, definition.bytecode, signer)
 }
 

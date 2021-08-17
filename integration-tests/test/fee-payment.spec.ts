@@ -12,8 +12,7 @@ import { IS_LIVE_NETWORK } from './shared/utils'
 import { OptimismEnv } from './shared/env'
 import { Direction } from './shared/watcher-utils'
 
-// TODO: unskip once fee payment works again
-describe.skip('Fee Payment Integration Tests', async () => {
+describe('Fee Payment Integration Tests', async () => {
   const other = '0x1234123412341234123412341234123412341234'
 
   let env: OptimismEnv
@@ -30,12 +29,14 @@ describe.skip('Fee Payment Integration Tests', async () => {
     )
   })
 
-  it(`Should return a gasPrice of ${TxGasPrice.toString()} wei`, async () => {
+  // TODO: ?
+  it.skip(`Should return a gasPrice of ${TxGasPrice.toString()} wei`, async () => {
     const gasPrice = await env.l2Wallet.getGasPrice()
     expect(gasPrice).to.deep.eq(TxGasPrice)
   })
 
-  it('Should estimateGas with recoverable L2 gasLimit', async () => {
+  // TODO: ?
+  it.skip('Should estimateGas with recoverable L2 gasLimit', async () => {
     const gas = await env.ovmEth.estimateGas.transfer(
       other,
       utils.parseEther('0.0000001')
@@ -52,7 +53,8 @@ describe.skip('Fee Payment Integration Tests', async () => {
     expect(BigNumber.from(executionGas)).deep.eq(decoded)
   })
 
-  it('Paying a nonzero but acceptable gasPrice fee', async () => {
+  // TODO: ?
+  it.skip('Paying a nonzero but acceptable gasPrice fee', async () => {
     const amount = utils.parseEther('0.0000001')
     const balanceBefore = await env.l2Wallet.getBalance()
     const feeVaultBalanceBefore = await env.l2Wallet.provider.getBalance(

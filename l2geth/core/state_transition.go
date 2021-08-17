@@ -22,6 +22,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/log"
@@ -169,6 +170,7 @@ func (st *StateTransition) buyGas() error {
 
 	st.initialGas = st.msg.Gas()
 	st.state.SubBalance(st.msg.From(), mgval)
+	log.Debug("WE SUCCESSFULLY BOUGHT GAS")
 	return nil
 }
 
@@ -188,6 +190,7 @@ func (st *StateTransition) preCheck() error {
 			return ErrNonceTooLow
 		}
 	}
+	log.Debug("WE SUCCESSFULLY DID PRECHECK")
 	return st.buyGas()
 }
 
@@ -213,6 +216,7 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 		return nil, 0, false, err
 	}
 
+	log.Debug("STARTING STATE TRANSITION")
 	var (
 		evm = st.evm
 		// vm errors do not effect consensus and are therefore
@@ -221,14 +225,16 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 		vmerr error
 	)
 	if contractCreation {
+		log.Debug("APPARENTLY DOING CONTRACT CREATION")
 		ret, _, st.gas, vmerr = evm.Create(sender, st.data, st.gas, st.value)
 	} else {
+		log.Debug("DOING CALL TO TARGET", "TARGET", st.to(), "SENDER", msg.From(), "GAS", st.gas)
 		// Increment the nonce for the next transaction
 		st.state.SetNonce(msg.From(), st.state.GetNonce(sender.Address())+1)
 		ret, st.gas, vmerr = evm.Call(sender, st.to(), st.data, st.gas, st.value)
 	}
 	if vmerr != nil {
-		log.Debug("VM returned with error", "err", vmerr)
+		log.Debug("VM returned with error", "err", vmerr, "ret", hexutil.Encode(ret))
 		// The only possible consensus-error would be if there wasn't
 		// sufficient balance to make the transfer happen. The first
 		// balance transfer may never fail.

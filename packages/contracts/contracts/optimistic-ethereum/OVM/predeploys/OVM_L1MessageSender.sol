@@ -3,7 +3,6 @@ pragma solidity >0.5.0 <0.8.0;
 
 /* Interface Imports */
 import { iOVM_L1MessageSender } from "../../iOVM/predeploys/iOVM_L1MessageSender.sol";
-import { iOVM_ExecutionManager } from "../../iOVM/execution/iOVM_ExecutionManager.sol";
 
 /**
  * @title OVM_L1MessageSender
@@ -32,12 +31,19 @@ contract OVM_L1MessageSender is iOVM_L1MessageSender {
     function getL1MessageSender()
         override
         public
-        view
         returns (
-            address _l1MessageSender
+            address
         )
     {
-        // Note that on L2 msg.sender (ie. evmCALLER) will always be the Execution Manager
-        return iOVM_ExecutionManager(msg.sender).ovmL1TXORIGIN();
+        bytes memory code = hex"4860005260206000F3";
+        address l1MessageSender;
+        assembly {
+            let created := create(0, add(code, 0x20), mload(code))
+            let out := mload(0x40)
+            mstore(0x40, add(out, 0x20))
+            extcodecopy(created, out, 0x0, 0x20)
+            l1MessageSender := mload(out)
+        }
+        return l1MessageSender;
     }
 }

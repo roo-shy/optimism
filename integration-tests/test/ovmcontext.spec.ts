@@ -15,8 +15,7 @@ import { Direction } from './shared/watcher-utils'
  * of a L1 to L2 transaction, both `block.number` and `block.timestamp`
  * must be equal to the blocknumber/timestamp of the L1 transaction.
  */
-// TODO: unskip once context works again
-describe.skip('OVM Context: Layer 2 EVM Context', () => {
+describe('OVM Context: Layer 2 EVM Context', () => {
   const L2Provider = injectL2Context(l2Provider)
   let env: OptimismEnv
   before(async () => {

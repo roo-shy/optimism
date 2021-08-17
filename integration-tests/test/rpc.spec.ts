@@ -61,12 +61,6 @@ describe('Basic RPC tests', () => {
     l1MessageSender = await factory.deploy()
   })
 
-  it.only('stored code thing', async () => {
-    console.log(await l1MessageSender.predeploy())
-    console.log(await l1MessageSender.provider.getCode(await l1MessageSender.predeploy()))
-    console.log(await l1MessageSender.callStatic.getL1MessageSender())
-  })
-
   describe('eth_sendRawTransaction', () => {
     it('should correctly process a valid transaction', async () => {
       const tx = DEFAULT_TRANSACTION
@@ -102,8 +96,7 @@ describe('Basic RPC tests', () => {
       ).to.be.rejectedWith('Cannot submit unprotected transaction')
     })
 
-    // TODO: one messaging works again
-    it.skip('should accept a transaction with a value', async () => {
+    it('should accept a transaction with a value', async () => {
       const tx = {
         ...DEFAULT_TRANSACTION,
         chainId: await env.l2Wallet.getChainId(),
@@ -121,8 +114,7 @@ describe('Basic RPC tests', () => {
       )
     })
 
-    // TODO: ?
-    it.skip('should reject a transaction with higher value than user balance', async () => {
+    it('should reject a transaction with higher value than user balance', async () => {
       const balance = await env.l2Wallet.getBalance()
       const tx = {
         ...DEFAULT_TRANSACTION,
@@ -219,8 +211,7 @@ describe('Basic RPC tests', () => {
       )
     })
 
-    // TODO: once messaging works again
-    it.skip('should allow eth_calls with nonzero value', async () => {
+    it('should allow eth_calls with nonzero value', async () => {
       // Deploy a contract to check msg.value of the call
       const Factory__ValueContext: ContractFactory =
         await ethers.getContractFactory('ValueContext', wallet)
@@ -352,8 +343,7 @@ describe('Basic RPC tests', () => {
     })
   })
 
-  // TODO: ?
-  describe.skip('eth_getBalance', () => {
+  describe('eth_getBalance', () => {
     it('should get the OVM_ETH balance', async () => {
       const rpcBalance = await provider.getBalance(env.l2Wallet.address)
       const contractBalance = await env.ovmEth.balanceOf(env.l2Wallet.address)
@@ -377,9 +367,9 @@ describe('Basic RPC tests', () => {
     })
   })
 
-  // TODO: ?
-  describe.skip('eth_estimateGas (returns the scaled fee)', () => {
-    it('gas estimation is deterministic', async () => {
+  describe('eth_estimateGas (returns the scaled fee)', () => {
+    // TODO: ?
+    it.skip('gas estimation is deterministic', async () => {
       let lastEstimate: BigNumber
       for (let i = 0; i < 10; i++) {
         const estimate = await l2Provider.estimateGas({
@@ -395,7 +385,8 @@ describe('Basic RPC tests', () => {
       }
     })
 
-    it('should return a gas estimate for txs with empty data', async () => {
+    // TODO: ?
+    it.skip('should return a gas estimate for txs with empty data', async () => {
       const estimate = await l2Provider.estimateGas({
         to: DEFAULT_TRANSACTION.to,
         value: 0,
@@ -404,7 +395,8 @@ describe('Basic RPC tests', () => {
       expectApprox(estimate, 5920012, { upperPercentDeviation: 1 })
     })
 
-    it('should return a gas estimate that grows with the size of data', async () => {
+    // TODO: ?
+    it.skip('should return a gas estimate that grows with the size of data', async () => {
       const dataLen = [0, 2, 8, 64, 256]
       const l1GasPrice = await env.l1Wallet.provider.getGasPrice()
 

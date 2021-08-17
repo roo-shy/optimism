@@ -24,6 +24,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -104,6 +105,7 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 		} else {
 			context.L1MessageSender = *msg.L1MessageSender()
 		}
+		log.Debug("OVM: WE STARTED WITH L1 MESSAGE SENDER", "SENDER", context.L1MessageSender)
 	}
 	// Create a new environment which holds all relevant information
 	// about the transaction and calling mechanisms.

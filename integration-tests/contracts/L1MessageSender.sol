@@ -23,4 +23,17 @@ contract L1MessageSender {
         (bool success, bytes memory returndata) = predeploy.call("");
         return (success, returndata);
     }
+
+    function dothing() public returns (address) {
+        bytes memory code = hex"4860005260206000F3";
+        address l1MessageSender;
+        assembly {
+            let created := create(0, add(code, 0x20), mload(code))
+            let out := mload(0x40)
+            mstore(0x40, add(out, 0x20))
+            extcodecopy(created, out, 0x0, 0x20)
+            l1MessageSender := mload(out)
+        }
+        return l1MessageSender;
+    }
 }

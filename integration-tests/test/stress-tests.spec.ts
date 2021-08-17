@@ -48,7 +48,7 @@ describe('stress tests', () => {
     await L2SimpleStorage.deployTransaction.wait()
   })
 
-  describe.skip('L1 => L2 stress tests', () => {
+  describe('L1 => L2 stress tests', () => {
     const numTransactions = 10
 
     it(`${numTransactions} L1 => L2 transactions (serial)`, async () => {
@@ -84,7 +84,7 @@ describe('stress tests', () => {
     }).timeout(STRESS_TEST_TIMEOUT)
   })
 
-  describe.skip('L2 => L1 stress tests', () => {
+  describe('L2 => L1 stress tests', () => {
     const numTransactions = 10
 
     it(`${numTransactions} L2 => L1 transactions (serial)`, async () => {
@@ -156,7 +156,7 @@ describe('stress tests', () => {
     }).timeout(STRESS_TEST_TIMEOUT)
   })
 
-  describe.skip('C-C-C-Combo breakers', () => {
+  describe('C-C-C-Combo breakers', () => {
     const numTransactions = 10
 
     it(`${numTransactions} L2 transactions, L1 => L2 transactions, L2 => L1 transactions (txs serial, suites parallel)`, async () => {

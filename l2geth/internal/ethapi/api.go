@@ -908,7 +908,11 @@ func DoCall(ctx context.Context, b Backend, args CallArgs, blockNrOrHash rpc.Blo
 	if vm.UsingOVM {
 		evm.Context.BlockNumber = blockNumber
 		evm.Context.Time = timestamp
-		evm.Context.L1MessageSender = common.HexToAddress("0x0000000000000000000000111100000000000000")
+		if msg.L1MessageSender() == nil {
+			evm.Context.L1MessageSender = common.HexToAddress("0x00000000000000000000000000000000000beef")
+		} else {
+			evm.Context.L1MessageSender = *msg.L1MessageSender()
+		}
 	}
 	res, gas, failed, err := core.ApplyMessage(evm, msg, gp)
 	if err := vmError(); err != nil {

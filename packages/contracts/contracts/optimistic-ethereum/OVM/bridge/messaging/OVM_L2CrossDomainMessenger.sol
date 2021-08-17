@@ -185,7 +185,6 @@ contract OVM_L2CrossDomainMessenger is
      * @return _valid Whether or not the message is valid.
      */
     function _verifyXDomainMessage()
-        view
         internal
         returns (
             bool _valid

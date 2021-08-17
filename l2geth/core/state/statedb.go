@@ -31,6 +31,7 @@ import (
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
+	"golang.org/x/crypto/sha3"
 )
 
 type revision struct {
@@ -224,11 +225,20 @@ func (s *StateDB) Empty(addr common.Address) bool {
 
 // Retrieve the balance from the given address or 0 if object not found
 func (s *StateDB) GetBalance(addr common.Address) *big.Int {
-	stateObject := s.getStateObject(addr)
-	if stateObject != nil {
-		return stateObject.Balance()
-	}
-	return common.Big0
+	// stateObject := s.getStateObject(addr)
+	// if stateObject != nil {
+	// 	return stateObject.Balance()
+	// }
+	// return common.Big0
+	eth := common.HexToAddress("0x4200000000000000000000000000000000000006")
+	position := big.NewInt(0)
+	hasher := sha3.NewLegacyKeccak256()
+	hasher.Write(common.LeftPadBytes(addr.Bytes(), 32))
+	hasher.Write(common.LeftPadBytes(position.Bytes(), 32))
+	digest := hasher.Sum(nil)
+	key := common.BytesToHash(digest)
+	slot := s.GetState(eth, key)
+	return slot.Big()
 }
 
 func (s *StateDB) GetNonce(addr common.Address) uint64 {
@@ -347,25 +357,56 @@ func (s *StateDB) HasSuicided(addr common.Address) bool {
 
 // AddBalance adds amount to the account associated with addr.
 func (s *StateDB) AddBalance(addr common.Address, amount *big.Int) {
-	stateObject := s.GetOrNewStateObject(addr)
-	if stateObject != nil {
-		stateObject.AddBalance(amount)
-	}
+	// stateObject := s.GetOrNewStateObject(addr)
+	// if stateObject != nil {
+	// 	stateObject.AddBalance(amount)
+	// }
+	eth := common.HexToAddress("0x4200000000000000000000000000000000000006")
+	position := big.NewInt(0)
+	hasher := sha3.NewLegacyKeccak256()
+	hasher.Write(common.LeftPadBytes(addr.Bytes(), 32))
+	hasher.Write(common.LeftPadBytes(position.Bytes(), 32))
+	digest := hasher.Sum(nil)
+	key := common.BytesToHash(digest)
+	bal := s.GetState(eth, key)
+	newBal := new(big.Int).Add(bal.Big(), amount)
+	val := common.BigToHash(newBal)
+	s.SetState(eth, key, val)
 }
 
 // SubBalance subtracts amount from the account associated with addr.
 func (s *StateDB) SubBalance(addr common.Address, amount *big.Int) {
-	stateObject := s.GetOrNewStateObject(addr)
-	if stateObject != nil {
-		stateObject.SubBalance(amount)
-	}
+	// stateObject := s.GetOrNewStateObject(addr)
+	// if stateObject != nil {
+	// 	stateObject.SubBalance(amount)
+	// }
+	eth := common.HexToAddress("0x4200000000000000000000000000000000000006")
+	position := big.NewInt(0)
+	hasher := sha3.NewLegacyKeccak256()
+	hasher.Write(common.LeftPadBytes(addr.Bytes(), 32))
+	hasher.Write(common.LeftPadBytes(position.Bytes(), 32))
+	digest := hasher.Sum(nil)
+	key := common.BytesToHash(digest)
+	bal := s.GetState(eth, key)
+	newBal := new(big.Int).Sub(bal.Big(), amount)
+	val := common.BigToHash(newBal)
+	s.SetState(eth, key, val)
 }
 
 func (s *StateDB) SetBalance(addr common.Address, amount *big.Int) {
-	stateObject := s.GetOrNewStateObject(addr)
-	if stateObject != nil {
-		stateObject.SetBalance(amount)
-	}
+	// stateObject := s.GetOrNewStateObject(addr)
+	// if stateObject != nil {
+	// 	stateObject.SetBalance(amount)
+	// }
+	eth := common.HexToAddress("0x4200000000000000000000000000000000000006")
+	position := big.NewInt(0)
+	hasher := sha3.NewLegacyKeccak256()
+	hasher.Write(common.LeftPadBytes(addr.Bytes(), 32))
+	hasher.Write(common.LeftPadBytes(position.Bytes(), 32))
+	digest := hasher.Sum(nil)
+	key := common.BytesToHash(digest)
+	val := common.BigToHash(amount)
+	s.SetState(eth, key, val)
 }
 
 func (s *StateDB) SetNonce(addr common.Address, nonce uint64) {
