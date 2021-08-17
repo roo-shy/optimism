@@ -92,9 +92,9 @@ func ExampleGenerateChain() {
 	fmt.Println("balance of addr1:", state.GetBalance(addr1))
 	fmt.Println("balance of addr2:", state.GetBalance(addr2))
 	fmt.Println("balance of addr3:", state.GetBalance(addr3))
-	// 	// Output:
-	// 	// last block: #5
-	// 	// balance of addr1: 989000
-	// 	// balance of addr2: 10000
-	// 	// balance of addr3: 19687500000000001000
+	// Output:
+	// last block: #5
+	// balance of addr1: 989000
+	// balance of addr2: 10000
+	// balance of addr3: 19687500000000001000
 }

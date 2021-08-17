@@ -16,10 +16,6 @@
 
 package ethclient
 
-/*
-// There is an import cycle
-// eth -> rollup -> ethclient
-
 import (
 	"context"
 	"errors"
@@ -339,4 +335,3 @@ func TestChainID(t *testing.T) {
 		t.Fatalf("ChainID returned wrong number: %+v", id)
 	}
 }
-*/

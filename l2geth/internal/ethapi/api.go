@@ -539,7 +539,7 @@ func (s *PublicBlockChainAPI) GetBalance(ctx context.Context, address common.Add
 	if state == nil || err != nil {
 		return nil, err
 	}
-	return (*hexutil.Big)(state.GetOVMBalance(address)), state.Error()
+	return (*hexutil.Big)(state.GetBalance(address)), state.Error()
 }
 
 // Result structs for GetProof

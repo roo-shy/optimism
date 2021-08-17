@@ -29,7 +29,6 @@ import (
 	"github.com/ethereum/go-ethereum/common/prque"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
@@ -540,7 +539,6 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 
 	// Ensure the transaction doesn't exceed the current block limit gas.
 	if pool.currentMaxGas < tx.Gas() {
-		log.Debug("exceeded", "tx", tx.Gas(), "pool", pool.currentMaxGas)
 		return ErrGasLimit
 	}
 
@@ -554,34 +552,19 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	if !local && pool.gasPrice.Cmp(tx.GasPrice()) > 0 {
 		return ErrUnderpriced
 	}
-	// Ensure the transaction adheres to nonce ordering
-	if vm.UsingOVM {
-		if pool.currentState.GetNonce(from) != tx.Nonce() {
-			return ErrNonceTooLow
-		}
-	} else {
-		if pool.currentState.GetNonce(from) > tx.Nonce() {
-			return ErrNonceTooLow
-		}
+	if pool.currentState.GetNonce(from) > tx.Nonce() {
+		return ErrNonceTooLow
 	}
-	// Transactor should have enough funds to cover the costs
-	// cost == V + GP * GL
-	if vm.UsingOVM {
-		if pool.currentState.GetOVMBalance(from).Cmp(tx.Cost()) < 0 {
-			return ErrInsufficientFunds
-		}
-	} else {
-		if pool.currentState.GetBalance(from).Cmp(tx.Cost()) < 0 {
-			return ErrInsufficientFunds
-		}
-		// Ensure the transaction has more gas than the basic tx fee.
-		intrGas, err := IntrinsicGas(tx.Data(), tx.To() == nil, true, pool.istanbul)
-		if err != nil {
-			return err
-		}
-		if tx.Gas() < intrGas {
-			return ErrIntrinsicGas
-		}
+	if pool.currentState.GetBalance(from).Cmp(tx.Cost()) < 0 {
+		return ErrInsufficientFunds
+	}
+	// Ensure the transaction has more gas than the basic tx fee.
+	intrGas, err := IntrinsicGas(tx.Data(), tx.To() == nil, true, pool.istanbul)
+	if err != nil {
+		return err
+	}
+	if tx.Gas() < intrGas {
+		return ErrIntrinsicGas
 	}
 	return nil
 }
@@ -594,7 +577,6 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 // whitelisted, preventing any associated transaction from being dropped out of the pool
 // due to pricing constraints.
 func (pool *TxPool) add(tx *types.Transaction, local bool) (replaced bool, err error) {
-	log.Debug("received tx", "gas", tx.Gas(), "gasprice", tx.GasPrice().Uint64())
 	// If the transaction is already known, discard it
 	hash := tx.Hash()
 	if pool.all.Get(hash) != nil {
