@@ -17,7 +17,6 @@
 package tests
 
 import (
-	"fmt"
 	"testing"
 )
 
@@ -47,7 +46,6 @@ func TestBlockchain(t *testing.T) {
 
 	bt.walk(t, blockTestDir, func(t *testing.T, name string, test *BlockTest) {
 		if err := bt.checkFailure(t, name, test.Run()); err != nil {
-			fmt.Println("******* NAME: ", name)
 			t.Error(err)
 		}
 	})

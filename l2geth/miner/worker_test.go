@@ -267,8 +267,6 @@ func TestEmptyWorkClique(t *testing.T) {
 }
 
 func testEmptyWork(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine) {
-	t.Skip("OVM breaks this with `account balance mismatch`, probably because transfers don't work.")
-
 	defer engine.Close()
 
 	w, _ := newTestWorker(t, chainConfig, engine, rawdb.NewMemoryDatabase(), 0)
@@ -375,8 +373,6 @@ func TestRegenerateMiningBlockClique(t *testing.T) {
 }
 
 func testRegenerateMiningBlock(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine) {
-	t.Skip("OVM breaks this with `account balance mismatch`, probably because transfers don't work.")
-
 	defer engine.Close()
 
 	w, b := newTestWorker(t, chainConfig, engine, rawdb.NewMemoryDatabase(), 0)
