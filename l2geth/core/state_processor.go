@@ -17,6 +17,8 @@
 package core
 
 import (
+	"fmt"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -81,17 +83,15 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 // for the transaction, gas used and an error if the transaction failed,
 // indicating the block was invalid.
 func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *common.Address, gp *GasPool, statedb *state.StateDB, header *types.Header, tx *types.Transaction, usedGas *uint64, cfg vm.Config) (*types.Receipt, error) {
-	var msg Message
-	var err error
-	if !vm.UsingOVM {
-		msg, err = tx.AsMessage(types.MakeSigner(config, header.Number))
-		if err != nil {
-			return nil, err
+	msg, err := tx.AsMessage(types.MakeSigner(config, header.Number))
+	if err != nil {
+		// This should only be allowed to pass if the transaction is in the ctc
+		// already. The presence of `Index` should specify this.
+		index := tx.GetMeta().Index
+		if index == nil {
+			return nil, fmt.Errorf("cannot convert tx to OVM message: %w", err)
 		}
-	} else {
-		decompressor := config.StateDump.Accounts["OVM_SequencerEntrypoint"]
-		msg, err = AsOvmMessage(tx, types.MakeSigner(config, header.Number), decompressor.Address, header.GasLimit)
-		if err != nil {
+		if msg.QueueOrigin() != types.QueueOriginL1ToL2 {
 			return nil, err
 		}
 	}
