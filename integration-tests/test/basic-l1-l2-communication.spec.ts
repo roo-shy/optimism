@@ -6,8 +6,8 @@ import { predeploys, getContractInterface } from '@eth-optimism/contracts'
 
 /* Imports: Internal */
 import l1SimpleStorageJson from '../artifacts/contracts/SimpleStorage.sol/SimpleStorage.json'
-import l2SimpleStorageJson from '../artifacts-ovm/contracts/SimpleStorage.sol/SimpleStorage.json'
-import l2ReverterJson from '../artifacts-ovm/contracts/Reverter.sol/Reverter.json'
+import l2SimpleStorageJson from '../artifacts/contracts/SimpleStorage.sol/SimpleStorage.json'
+import l2ReverterJson from '../artifacts/contracts/Reverter.sol/Reverter.json'
 import { Direction } from './shared/watcher-utils'
 import { OptimismEnv, useDynamicTimeoutForWithdrawals } from './shared/env'
 

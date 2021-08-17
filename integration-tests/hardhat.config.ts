@@ -13,23 +13,11 @@ const config: HardhatUserConfig = {
     local: {
       url: process.env.L2_URL || 'http://localhost:8545',
     },
-    optimism: {
-      url: process.env.L2_URL || 'http://localhost:8545',
-      ovm: true,
-    },
-    'optimism-live': {
-      url: process.env.L2_URL || 'http://localhost:8545',
-      ovm: true,
-      timeout: 150000,
-    },
   },
   mocha: {
     timeout: 50000,
   },
   solidity: '0.7.6',
-  ovm: {
-    solcVersion: '0.7.6+commit.3b061308',
-  },
   gasReporter: {
     enabled: enableGasReport,
     currency: 'USD',

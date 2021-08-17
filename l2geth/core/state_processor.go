@@ -99,6 +99,11 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 	context := NewEVMContext(msg, header, bc, author)
 	if vm.UsingOVM {
 		context.BlockNumber = msg.L1BlockNumber()
+		if msg.L1MessageSender() == nil {
+			context.L1MessageSender = common.HexToAddress("0x00000000000000000000000000000000000beef")
+		} else {
+			context.L1MessageSender = *msg.L1MessageSender()
+		}
 	}
 	// Create a new environment which holds all relevant information
 	// about the transaction and calling mechanisms.

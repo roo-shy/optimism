@@ -35,7 +35,7 @@ describe('Basic RPC tests', () => {
   let revertMessage: string
   let revertingTx: TransactionRequest
   let revertingDeployTx: TransactionRequest
-
+  let l1MessageSender: Contract
   before(async () => {
     env = await OptimismEnv.new()
     wallet = env.l2Wallet
@@ -57,6 +57,14 @@ describe('Basic RPC tests', () => {
     revertingDeployTx = {
       data: Factory__ConstructorReverter.bytecode,
     }
+    const factory = await ethers.getContractFactory('L1MessageSender', wallet)
+    l1MessageSender = await factory.deploy()
+  })
+
+  it.only('stored code thing', async () => {
+    console.log(await l1MessageSender.predeploy())
+    console.log(await l1MessageSender.provider.getCode(await l1MessageSender.predeploy()))
+    console.log(await l1MessageSender.callStatic.getL1MessageSender())
   })
 
   describe('eth_sendRawTransaction', () => {

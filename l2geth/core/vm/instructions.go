@@ -23,6 +23,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"golang.org/x/crypto/sha3"
 )
@@ -962,4 +963,11 @@ func makeSwap(size int64) executionFunc {
 		stack.swap(int(size))
 		return nil, nil
 	}
+}
+
+// OVM opcodes
+func opL1MessageSender(pc *uint64, interpreter *EVMInterpreter, contract *Contract, memory *Memory, stack *Stack) ([]byte, error) {
+	log.Debug("WE CALLED MESSAGE SENDER, VALUE SHOULD BE", "VAL", interpreter.evm.L1MessageSender)
+	stack.push(interpreter.intPool.get().SetBytes(interpreter.evm.L1MessageSender.Bytes()))
+	return nil, nil
 }
