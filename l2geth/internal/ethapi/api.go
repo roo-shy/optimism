@@ -906,7 +906,6 @@ func DoCall(ctx context.Context, b Backend, args CallArgs, blockNrOrHash rpc.Blo
 	// and apply the message.
 	gp := new(core.GasPool).AddGas(math.MaxUint64)
 	if vm.UsingOVM {
-		evm.Context.EthCallSender = &addr
 		evm.Context.BlockNumber = blockNumber
 		evm.Context.Time = timestamp
 	}
