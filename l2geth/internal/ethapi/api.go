@@ -857,7 +857,7 @@ func DoCall(ctx context.Context, b Backend, args CallArgs, blockNrOrHash rpc.Blo
 		log.Warn("Caller gas above allowance, capping", "requested", gas, "cap", globalGasCap)
 		gas = globalGasCap.Uint64()
 	}
-	gasPrice := new(big.Int).SetUint64(defaultGasPrice)
+	gasPrice := new(big.Int)
 	if args.GasPrice != nil {
 		gasPrice = args.GasPrice.ToInt()
 	}
@@ -874,6 +874,23 @@ func DoCall(ctx context.Context, b Backend, args CallArgs, blockNrOrHash rpc.Blo
 
 	blockNumber := header.Number
 	timestamp := new(big.Int).SetUint64(header.Time)
+	if vm.UsingOVM {
+		block, err := b.BlockByNumber(ctx, rpc.BlockNumber(header.Number.Uint64()))
+		if err != nil {
+			return nil, 0, false, err
+		}
+		if block != nil {
+			txs := block.Transactions()
+			if header.Number.Uint64() != 0 {
+				if len(txs) != 1 {
+					return nil, 0, false, fmt.Errorf("block %d has more than 1 transaction", header.Number.Uint64())
+				}
+				tx := txs[0]
+				blockNumber = tx.L1BlockNumber()
+				timestamp = new(big.Int).SetUint64(tx.L1Timestamp())
+			}
+		}
+	}
 
 	// Create new call message
 	msg := types.NewMessage(addr, args.To, 0, value, gas, gasPrice, data, false, &addr, nil, types.QueueOriginSequencer)
