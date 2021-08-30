@@ -17,25 +17,53 @@
 package rawdb
 
 import (
+	"bytes"
+	"hash"
 	"math/big"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethdb"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
+	"golang.org/x/crypto/sha3"
 )
+
+// testHasher is the helper tool for transaction/receipt list hashing.
+// The original hasher is trie, in order to get rid of import cycle,
+// use the testing hasher instead.
+type testHasher struct {
+	hasher hash.Hash
+}
+
+func newHasher() *testHasher {
+	return &testHasher{hasher: sha3.NewLegacyKeccak256()}
+}
+
+func (h *testHasher) Reset() {
+	h.hasher.Reset()
+}
+
+func (h *testHasher) Update(key, val []byte) {
+	h.hasher.Write(key)
+	h.hasher.Write(val)
+}
+
+func (h *testHasher) Hash() common.Hash {
+	return common.BytesToHash(h.hasher.Sum(nil))
+}
 
 // Tests that positional lookup metadata can be stored and retrieved.
 func TestLookupStorage(t *testing.T) {
 	tests := []struct {
-		name                 string
-		writeTxLookupEntries func(ethdb.Writer, *types.Block)
+		name                        string
+		writeTxLookupEntriesByBlock func(ethdb.Writer, *types.Block)
 	}{
 		{
 			"DatabaseV6",
 			func(db ethdb.Writer, block *types.Block) {
-				WriteTxLookupEntries(db, block)
+				WriteTxLookupEntriesByBlock(db, block)
 			},
 		},
 		{
@@ -66,27 +94,12 @@ func TestLookupStorage(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			db := NewMemoryDatabase()
 
-			sender1 := common.BytesToAddress([]byte{0x44})
-			sender2 := common.BytesToAddress([]byte{0x55})
-
-			l1BlockNumber1 := big.NewInt(1)
-			l1BlockNumber2 := big.NewInt(2)
-
 			tx1 := types.NewTransaction(1, common.BytesToAddress([]byte{0x11}), big.NewInt(111), 1111, big.NewInt(11111), []byte{0x11, 0x11, 0x11})
-			tx1Meta := types.NewTransactionMeta(l1BlockNumber1, 0, &sender1, types.QueueOriginSequencer, nil, nil, nil)
-			tx1.SetTransactionMeta(tx1Meta)
-
 			tx2 := types.NewTransaction(2, common.BytesToAddress([]byte{0x22}), big.NewInt(222), 2222, big.NewInt(22222), []byte{0x22, 0x22, 0x22})
-			tx2Meta := types.NewTransactionMeta(l1BlockNumber2, 0, &sender2, types.QueueOriginSequencer, nil, nil, nil)
-			tx2.SetTransactionMeta(tx2Meta)
-
 			tx3 := types.NewTransaction(3, common.BytesToAddress([]byte{0x33}), big.NewInt(333), 3333, big.NewInt(33333), []byte{0x33, 0x33, 0x33})
-			tx3Meta := types.NewTransactionMeta(l1BlockNumber1, 0, nil, types.QueueOriginSequencer, nil, nil, nil)
-			tx3.SetTransactionMeta(tx3Meta)
-
 			txs := []*types.Transaction{tx1, tx2, tx3}
 
-			block := types.NewBlock(&types.Header{Number: big.NewInt(314)}, txs, nil, nil)
+			block := types.NewBlock(&types.Header{Number: big.NewInt(314)}, txs, nil, nil, newHasher())
 
 			// Check that no transactions entries are in a pristine database
 			for i, tx := range txs {
@@ -97,7 +110,7 @@ func TestLookupStorage(t *testing.T) {
 			// Insert all the transactions into the database, and verify contents
 			WriteCanonicalHash(db, block.Hash(), block.NumberU64())
 			WriteBlock(db, block)
-			tc.writeTxLookupEntries(db, block)
+			tc.writeTxLookupEntriesByBlock(db, block)
 
 			for i, tx := range txs {
 				if txn, hash, number, index := ReadTransaction(db, tx.Hash()); txn == nil {
@@ -120,4 +133,47 @@ func TestLookupStorage(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDeleteBloomBits(t *testing.T) {
+	// Prepare testing data
+	db := NewMemoryDatabase()
+	for i := uint(0); i < 2; i++ {
+		for s := uint64(0); s < 2; s++ {
+			WriteBloomBits(db, i, s, params.MainnetGenesisHash, []byte{0x01, 0x02})
+			WriteBloomBits(db, i, s, params.RinkebyGenesisHash, []byte{0x01, 0x02})
+		}
+	}
+	check := func(bit uint, section uint64, head common.Hash, exist bool) {
+		bits, _ := ReadBloomBits(db, bit, section, head)
+		if exist && !bytes.Equal(bits, []byte{0x01, 0x02}) {
+			t.Fatalf("Bloombits mismatch")
+		}
+		if !exist && len(bits) > 0 {
+			t.Fatalf("Bloombits should be removed")
+		}
+	}
+	// Check the existence of written data.
+	check(0, 0, params.MainnetGenesisHash, true)
+	check(0, 0, params.RinkebyGenesisHash, true)
+
+	// Check the existence of deleted data.
+	DeleteBloombits(db, 0, 0, 1)
+	check(0, 0, params.MainnetGenesisHash, false)
+	check(0, 0, params.RinkebyGenesisHash, false)
+	check(0, 1, params.MainnetGenesisHash, true)
+	check(0, 1, params.RinkebyGenesisHash, true)
+
+	// Check the existence of deleted data.
+	DeleteBloombits(db, 0, 0, 2)
+	check(0, 0, params.MainnetGenesisHash, false)
+	check(0, 0, params.RinkebyGenesisHash, false)
+	check(0, 1, params.MainnetGenesisHash, false)
+	check(0, 1, params.RinkebyGenesisHash, false)
+
+	// Bit1 shouldn't be affect.
+	check(1, 0, params.MainnetGenesisHash, true)
+	check(1, 0, params.RinkebyGenesisHash, true)
+	check(1, 1, params.MainnetGenesisHash, true)
+	check(1, 1, params.RinkebyGenesisHash, true)
 }

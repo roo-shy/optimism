@@ -31,21 +31,17 @@ import (
 )
 
 func TestDefaultGenesisBlock(t *testing.T) {
-	t.Skip("OVM breaks this test because it adds the OVM contracts to the Genesis state.")
-
 	block := DefaultGenesisBlock().ToBlock(nil)
 	if block.Hash() != params.MainnetGenesisHash {
 		t.Errorf("wrong mainnet genesis hash, got %v, want %v", block.Hash(), params.MainnetGenesisHash)
 	}
-	block = DefaultTestnetGenesisBlock().ToBlock(nil)
-	if block.Hash() != params.TestnetGenesisHash {
-		t.Errorf("wrong testnet genesis hash, got %v, want %v", block.Hash(), params.TestnetGenesisHash)
+	block = DefaultRopstenGenesisBlock().ToBlock(nil)
+	if block.Hash() != params.RopstenGenesisHash {
+		t.Errorf("wrong ropsten genesis hash, got %v, want %v", block.Hash(), params.RopstenGenesisHash)
 	}
 }
 
 func TestSetupGenesis(t *testing.T) {
-	t.Skip("OVM Genesis breaks this test because it adds the OVM contracts to the state.")
-
 	var (
 		customghash = common.HexToHash("0x89c99d90b79719238d2645c7642f2c9295246e80775b38cfd162b696817fbd50")
 		customg     = Genesis{
@@ -99,14 +95,14 @@ func TestSetupGenesis(t *testing.T) {
 			wantConfig: customg.Config,
 		},
 		{
-			name: "custom block in DB, genesis == testnet",
+			name: "custom block in DB, genesis == ropsten",
 			fn: func(db ethdb.Database) (*params.ChainConfig, common.Hash, error) {
 				customg.MustCommit(db)
-				return SetupGenesisBlock(db, DefaultTestnetGenesisBlock())
+				return SetupGenesisBlock(db, DefaultRopstenGenesisBlock())
 			},
-			wantErr:    &GenesisMismatchError{Stored: customghash, New: params.TestnetGenesisHash},
-			wantHash:   params.TestnetGenesisHash,
-			wantConfig: params.TestnetChainConfig,
+			wantErr:    &GenesisMismatchError{Stored: customghash, New: params.RopstenGenesisHash},
+			wantHash:   params.RopstenGenesisHash,
+			wantConfig: params.RopstenChainConfig,
 		},
 		{
 			name: "compatible config in DB",
@@ -124,7 +120,7 @@ func TestSetupGenesis(t *testing.T) {
 				// Advance to block #4, past the homestead transition block of customg.
 				genesis := oldcustomg.MustCommit(db)
 
-				bc, _ := NewBlockChain(db, nil, oldcustomg.Config, ethash.NewFullFaker(), vm.Config{}, nil)
+				bc, _ := NewBlockChain(db, nil, oldcustomg.Config, ethash.NewFullFaker(), vm.Config{}, nil, nil)
 				defer bc.Stop()
 
 				blocks, _ := GenerateChain(oldcustomg.Config, genesis, ethash.NewFaker(), db, 4, nil)
@@ -163,6 +159,37 @@ func TestSetupGenesis(t *testing.T) {
 			if stored.Hash() != test.wantHash {
 				t.Errorf("%s: block in DB has hash %s, want %s", test.name, stored.Hash(), test.wantHash)
 			}
+		}
+	}
+}
+
+// TestGenesisHashes checks the congruity of default genesis data to corresponding hardcoded genesis hash values.
+func TestGenesisHashes(t *testing.T) {
+	cases := []struct {
+		genesis *Genesis
+		hash    common.Hash
+	}{
+		{
+			genesis: DefaultGenesisBlock(),
+			hash:    params.MainnetGenesisHash,
+		},
+		{
+			genesis: DefaultGoerliGenesisBlock(),
+			hash:    params.GoerliGenesisHash,
+		},
+		{
+			genesis: DefaultRopstenGenesisBlock(),
+			hash:    params.RopstenGenesisHash,
+		},
+		{
+			genesis: DefaultRinkebyGenesisBlock(),
+			hash:    params.RinkebyGenesisHash,
+		},
+	}
+	for i, c := range cases {
+		b := c.genesis.MustCommit(rawdb.NewMemoryDatabase())
+		if got := b.Hash(); got != c.hash {
+			t.Errorf("case: %d, want: %s, got: %s", i, c.hash.Hex(), got.Hex())
 		}
 	}
 }

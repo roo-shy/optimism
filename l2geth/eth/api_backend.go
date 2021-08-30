@@ -19,12 +19,11 @@ package eth
 import (
 	"context"
 	"errors"
-	"fmt"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/math"
+	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/bloombits"
 	"github.com/ethereum/go-ethereum/core/rawdb"
@@ -35,57 +34,17 @@ import (
 	"github.com/ethereum/go-ethereum/eth/gasprice"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/miner"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/rollup/rcfg"
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
 // EthAPIBackend implements ethapi.Backend for full nodes
 type EthAPIBackend struct {
-	extRPCEnabled   bool
-	eth             *Ethereum
-	gpo             *gasprice.Oracle
-	rollupGpo       *gasprice.RollupOracle
-	verifier        bool
-	gasLimit        uint64
-	UsingOVM        bool
-	MaxCallDataSize int
-}
-
-func (b *EthAPIBackend) IsVerifier() bool {
-	return b.verifier
-}
-
-func (b *EthAPIBackend) IsSyncing() bool {
-	return b.eth.syncService.IsSyncing()
-}
-
-func (b *EthAPIBackend) GasLimit() uint64 {
-	return b.gasLimit
-}
-
-func (b *EthAPIBackend) GetEthContext() (uint64, uint64) {
-	bn := b.eth.syncService.GetLatestL1BlockNumber()
-	ts := b.eth.syncService.GetLatestL1Timestamp()
-	return bn, ts
-}
-
-func (b *EthAPIBackend) GetRollupContext() (uint64, uint64, uint64) {
-	index := uint64(0)
-	queueIndex := uint64(0)
-	verifiedIndex := uint64(0)
-
-	if latest := b.eth.syncService.GetLatestIndex(); latest != nil {
-		index = *latest
-	}
-	if latest := b.eth.syncService.GetLatestEnqueueIndex(); latest != nil {
-		queueIndex = *latest
-	}
-	if latest := b.eth.syncService.GetLatestVerifiedIndex(); latest != nil {
-		verifiedIndex = *latest
-	}
-	return index, queueIndex, verifiedIndex
+	extRPCEnabled       bool
+	allowUnprotectedTxs bool
+	eth                 *Ethereum
+	gpo                 *gasprice.Oracle
 }
 
 // ChainConfig returns the active chain configuration.
@@ -98,42 +57,8 @@ func (b *EthAPIBackend) CurrentBlock() *types.Block {
 }
 
 func (b *EthAPIBackend) SetHead(number uint64) {
-	if number == 0 {
-		log.Info("Cannot reset to genesis")
-		return
-	}
-	if !b.UsingOVM {
-		b.eth.protocolManager.downloader.Cancel()
-	}
+	b.eth.handler.downloader.Cancel()
 	b.eth.blockchain.SetHead(number)
-
-	// Make sure to reset the LatestL1{Timestamp,BlockNumber}
-	block := b.eth.blockchain.CurrentBlock()
-	txs := block.Transactions()
-	if len(txs) == 0 {
-		log.Error("No transactions found in block", "number", number)
-		return
-	}
-
-	tx := txs[0]
-	blockNumber := tx.L1BlockNumber()
-	if blockNumber == nil {
-		log.Error("No L1BlockNumber found in transaction", "number", number)
-		return
-	}
-
-	b.eth.syncService.SetLatestL1Timestamp(tx.L1Timestamp())
-	b.eth.syncService.SetLatestL1BlockNumber(blockNumber.Uint64())
-}
-
-func (b *EthAPIBackend) IngestTransactions(txs []*types.Transaction) error {
-	for _, tx := range txs {
-		err := b.eth.syncService.IngestTransaction(tx)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func (b *EthAPIBackend) HeaderByNumber(ctx context.Context, number rpc.BlockNumber) (*types.Header, error) {
@@ -208,6 +133,10 @@ func (b *EthAPIBackend) BlockByNumberOrHash(ctx context.Context, blockNrOrHash r
 	return nil, errors.New("invalid arguments; neither block nor hash specified")
 }
 
+func (b *EthAPIBackend) PendingBlockAndReceipts() (*types.Block, types.Receipts) {
+	return b.eth.miner.PendingBlockAndReceipts()
+}
+
 func (b *EthAPIBackend) StateAndHeaderByNumber(ctx context.Context, number rpc.BlockNumber) (*state.StateDB, *types.Header, error) {
 	// Pending state is only known by the miner
 	if number == rpc.PendingBlockNumber {
@@ -263,22 +192,18 @@ func (b *EthAPIBackend) GetLogs(ctx context.Context, hash common.Hash) ([][]*typ
 	return logs, nil
 }
 
-func (b *EthAPIBackend) GetTd(blockHash common.Hash) *big.Int {
-	return b.eth.blockchain.GetTdByHash(blockHash)
+func (b *EthAPIBackend) GetTd(ctx context.Context, hash common.Hash) *big.Int {
+	return b.eth.blockchain.GetTdByHash(hash)
 }
 
-func (b *EthAPIBackend) GetEVM(ctx context.Context, msg core.Message, state *state.StateDB, header *types.Header) (*vm.EVM, func() error, error) {
-	// This was removed upstream:
-	// https://github.com/ethereum/go-ethereum/commit/39f502329fac4640cfb71959c3496f19ea88bc85#diff-9886da3412b43831145f62cec6e895eb3613a175b945e5b026543b7463454603
-	// We're throwing this behind a UsingOVM flag for now as to not break
-	// any tests that may depend on this behavior.
-	if !rcfg.UsingOVM {
-		state.SetBalance(msg.From(), math.MaxBig256)
-	}
+func (b *EthAPIBackend) GetEVM(ctx context.Context, msg core.Message, state *state.StateDB, header *types.Header, vmConfig *vm.Config) (*vm.EVM, func() error, error) {
 	vmError := func() error { return nil }
-
-	context := core.NewEVMContext(msg, header, b.eth.BlockChain(), nil)
-	return vm.NewEVM(context, state, b.eth.blockchain.Config(), *b.eth.blockchain.GetVMConfig()), vmError, nil
+	if vmConfig == nil {
+		vmConfig = b.eth.blockchain.GetVMConfig()
+	}
+	txContext := core.NewEVMTxContext(msg)
+	context := core.NewEVMBlockContext(header, b.eth.BlockChain(), nil)
+	return vm.NewEVM(context, txContext, state, b.eth.blockchain.Config(), *vmConfig), vmError, nil
 }
 
 func (b *EthAPIBackend) SubscribeRemovedLogsEvent(ch chan<- core.RemovedLogsEvent) event.Subscription {
@@ -305,30 +230,12 @@ func (b *EthAPIBackend) SubscribeLogsEvent(ch chan<- []*types.Log) event.Subscri
 	return b.eth.BlockChain().SubscribeLogsEvent(ch)
 }
 
-// Transactions originating from the RPC endpoints are added to remotes so that
-// a lock can be used around the remotes for when the sequencer is reorganizing.
 func (b *EthAPIBackend) SendTx(ctx context.Context, signedTx *types.Transaction) error {
-	if b.UsingOVM {
-		to := signedTx.To()
-		if to != nil {
-			// Prevent QueueOriginSequencer transactions that are too large to
-			// be included in a batch. The `MaxCallDataSize` should be set to
-			// the layer one consensus max transaction size in bytes minus the
-			// constant sized overhead of a batch. This will prevent
-			// a layer two transaction from not being able to be batch submitted
-			// to layer one.
-			if len(signedTx.Data()) > b.MaxCallDataSize {
-				return fmt.Errorf("Calldata cannot be larger than %d, sent %d", b.MaxCallDataSize, len(signedTx.Data()))
-			}
-		}
-		return b.eth.syncService.ValidateAndApplySequencerTransaction(signedTx)
-	}
-	// OVM Disabled
 	return b.eth.txPool.AddLocal(signedTx)
 }
 
 func (b *EthAPIBackend) GetPoolTransactions() (types.Transactions, error) {
-	pending, err := b.eth.txPool.Pending()
+	pending, err := b.eth.txPool.Pending(false)
 	if err != nil {
 		return nil, err
 	}
@@ -360,6 +267,14 @@ func (b *EthAPIBackend) TxPoolContent() (map[common.Address]types.Transactions, 
 	return b.eth.TxPool().Content()
 }
 
+func (b *EthAPIBackend) TxPoolContentFrom(addr common.Address) (types.Transactions, types.Transactions) {
+	return b.eth.TxPool().ContentFrom(addr)
+}
+
+func (b *EthAPIBackend) TxPool() *core.TxPool {
+	return b.eth.TxPool()
+}
+
 func (b *EthAPIBackend) SubscribeNewTxsEvent(ch chan<- core.NewTxsEvent) event.Subscription {
 	return b.eth.TxPool().SubscribeNewTxsEvent(ch)
 }
@@ -368,28 +283,12 @@ func (b *EthAPIBackend) Downloader() *downloader.Downloader {
 	return b.eth.Downloader()
 }
 
-func (b *EthAPIBackend) ProtocolVersion() int {
-	return b.eth.EthVersion()
+func (b *EthAPIBackend) SuggestGasTipCap(ctx context.Context) (*big.Int, error) {
+	return b.gpo.SuggestTipCap(ctx)
 }
 
-func (b *EthAPIBackend) SuggestPrice(ctx context.Context) (*big.Int, error) {
-	return b.gpo.SuggestPrice(ctx)
-}
-
-func (b *EthAPIBackend) SuggestL1GasPrice(ctx context.Context) (*big.Int, error) {
-	return b.rollupGpo.SuggestL1GasPrice(ctx)
-}
-
-func (b *EthAPIBackend) SuggestL2GasPrice(ctx context.Context) (*big.Int, error) {
-	return b.rollupGpo.SuggestL2GasPrice(ctx)
-}
-
-func (b *EthAPIBackend) SetL1GasPrice(ctx context.Context, gasPrice *big.Int) error {
-	return b.rollupGpo.SetL1GasPrice(gasPrice)
-}
-
-func (b *EthAPIBackend) SetL2GasPrice(ctx context.Context, gasPrice *big.Int) error {
-	return b.rollupGpo.SetL2GasPrice(gasPrice)
+func (b *EthAPIBackend) FeeHistory(ctx context.Context, blockCount int, lastBlock rpc.BlockNumber, rewardPercentiles []float64) (firstBlock *big.Int, reward [][]*big.Int, baseFee []*big.Int, gasUsedRatio []float64, err error) {
+	return b.gpo.FeeHistory(ctx, blockCount, lastBlock, rewardPercentiles)
 }
 
 func (b *EthAPIBackend) ChainDb() ethdb.Database {
@@ -408,8 +307,16 @@ func (b *EthAPIBackend) ExtRPCEnabled() bool {
 	return b.extRPCEnabled
 }
 
-func (b *EthAPIBackend) RPCGasCap() *big.Int {
+func (b *EthAPIBackend) UnprotectedAllowed() bool {
+	return b.allowUnprotectedTxs
+}
+
+func (b *EthAPIBackend) RPCGasCap() uint64 {
 	return b.eth.config.RPCGasCap
+}
+
+func (b *EthAPIBackend) RPCTxFeeCap() float64 {
+	return b.eth.config.RPCTxFeeCap
 }
 
 func (b *EthAPIBackend) BloomStatus() (uint64, uint64) {
@@ -421,4 +328,28 @@ func (b *EthAPIBackend) ServiceFilter(ctx context.Context, session *bloombits.Ma
 	for i := 0; i < bloomFilterThreads; i++ {
 		go session.Multiplex(bloomRetrievalBatch, bloomRetrievalWait, b.eth.bloomRequests)
 	}
+}
+
+func (b *EthAPIBackend) Engine() consensus.Engine {
+	return b.eth.engine
+}
+
+func (b *EthAPIBackend) CurrentHeader() *types.Header {
+	return b.eth.blockchain.CurrentHeader()
+}
+
+func (b *EthAPIBackend) Miner() *miner.Miner {
+	return b.eth.Miner()
+}
+
+func (b *EthAPIBackend) StartMining(threads int) error {
+	return b.eth.StartMining(threads)
+}
+
+func (b *EthAPIBackend) StateAtBlock(ctx context.Context, block *types.Block, reexec uint64, base *state.StateDB, checkLive bool) (*state.StateDB, error) {
+	return b.eth.stateAtBlock(block, reexec, base, checkLive)
+}
+
+func (b *EthAPIBackend) StateAtTransaction(ctx context.Context, block *types.Block, txIndex int, reexec uint64) (core.Message, vm.BlockContext, *state.StateDB, error) {
+	return b.eth.stateAtTransaction(block, txIndex, reexec)
 }

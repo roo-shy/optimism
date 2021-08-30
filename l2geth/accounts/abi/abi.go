@@ -34,7 +34,12 @@ type ABI struct {
 	Constructor Method
 	Methods     map[string]Method
 	Events      map[string]Event
-	MethodsById map[[4]byte]*Method
+
+	// Additional "special" functions introduced in solidity v0.6.0.
+	// It's separated from the original default fallback. Each contract
+	// can only define one fallback and receive function.
+	Fallback Method // Note it's also used to represent legacy fallback before v0.6.0
+	Receive  Method
 }
 
 // JSON returns a parsed ABI interface and error if it failed.
@@ -45,7 +50,6 @@ func JSON(reader io.Reader) (ABI, error) {
 	if err := dec.Decode(&abi); err != nil {
 		return ABI{}, err
 	}
-
 	return abi, nil
 }
 
@@ -73,159 +77,201 @@ func (abi ABI) Pack(name string, args ...interface{}) ([]byte, error) {
 		return nil, err
 	}
 	// Pack up the method ID too if not a constructor and return
-	return append(method.ID(), arguments...), nil
+	return append(method.ID, arguments...), nil
 }
 
-// Unpack output in v according to the abi specification
-func (abi ABI) Unpack(v interface{}, name string, data []byte) (err error) {
+func (abi ABI) getArguments(name string, data []byte) (Arguments, error) {
 	// since there can't be naming collisions with contracts and events,
 	// we need to decide whether we're calling a method or an event
+	var args Arguments
 	if method, ok := abi.Methods[name]; ok {
 		if len(data)%32 != 0 {
-			return fmt.Errorf("abi: improperly formatted output: %s - Bytes: [%+v]", string(data), data)
+			return nil, fmt.Errorf("abi: improperly formatted output: %s - Bytes: [%+v]", string(data), data)
 		}
-		return method.Outputs.Unpack(v, data)
+		args = method.Outputs
 	}
 	if event, ok := abi.Events[name]; ok {
-		return event.Inputs.Unpack(v, data)
+		args = event.Inputs
 	}
-	return fmt.Errorf("abi: could not locate named method or event")
+	if args == nil {
+		return nil, errors.New("abi: could not locate named method or event")
+	}
+	return args, nil
 }
 
-// UnpackIntoMap unpacks a log into the provided map[string]interface{}
+// Unpack unpacks the output according to the abi specification.
+func (abi ABI) Unpack(name string, data []byte) ([]interface{}, error) {
+	args, err := abi.getArguments(name, data)
+	if err != nil {
+		return nil, err
+	}
+	return args.Unpack(data)
+}
+
+// UnpackIntoInterface unpacks the output in v according to the abi specification.
+// It performs an additional copy. Please only use, if you want to unpack into a
+// structure that does not strictly conform to the abi structure (e.g. has additional arguments)
+func (abi ABI) UnpackIntoInterface(v interface{}, name string, data []byte) error {
+	args, err := abi.getArguments(name, data)
+	if err != nil {
+		return err
+	}
+	unpacked, err := args.Unpack(data)
+	if err != nil {
+		return err
+	}
+	return args.Copy(v, unpacked)
+}
+
+// UnpackIntoMap unpacks a log into the provided map[string]interface{}.
 func (abi ABI) UnpackIntoMap(v map[string]interface{}, name string, data []byte) (err error) {
-	// since there can't be naming collisions with contracts and events,
-	// we need to decide whether we're calling a method or an event
-	if method, ok := abi.Methods[name]; ok {
-		if len(data)%32 != 0 {
-			return fmt.Errorf("abi: improperly formatted output")
-		}
-		return method.Outputs.UnpackIntoMap(v, data)
+	args, err := abi.getArguments(name, data)
+	if err != nil {
+		return err
 	}
-	if event, ok := abi.Events[name]; ok {
-		return event.Inputs.UnpackIntoMap(v, data)
-	}
-	return fmt.Errorf("abi: could not locate named method or event")
+	return args.UnpackIntoMap(v, data)
 }
 
-// UnmarshalJSON implements json.Unmarshaler interface
+// UnmarshalJSON implements json.Unmarshaler interface.
 func (abi *ABI) UnmarshalJSON(data []byte) error {
 	var fields []struct {
-		Type            string
-		Name            string
-		Constant        bool
+		Type    string
+		Name    string
+		Inputs  []Argument
+		Outputs []Argument
+
+		// Status indicator which can be: "pure", "view",
+		// "nonpayable" or "payable".
 		StateMutability string
-		Anonymous       bool
-		Inputs          []Argument
-		Outputs         []Argument
+
+		// Deprecated Status indicators, but removed in v0.6.0.
+		Constant bool // True if function is either pure or view
+		Payable  bool // True if function is payable
+
+		// Event relevant indicator represents the event is
+		// declared as anonymous.
+		Anonymous bool
 	}
 	if err := json.Unmarshal(data, &fields); err != nil {
 		return err
 	}
 	abi.Methods = make(map[string]Method)
-	// UsingOVM specific changes
-	// Create a cache of methods when running under the OVM because
-	// looking up methods based on the 4 byte selector is part of the hot
-	// code path. Without this cache, it was observed that 50% of the CPU
-	// time during syncing was spent hashing the function selectors
-	// during the call to `abi.MethodsById`
-	abi.MethodsById = make(map[[4]byte]*Method)
 	abi.Events = make(map[string]Event)
 	for _, field := range fields {
 		switch field.Type {
 		case "constructor":
-			abi.Constructor = Method{
-				Inputs: field.Inputs,
+			abi.Constructor = NewMethod("", "", Constructor, field.StateMutability, field.Constant, field.Payable, field.Inputs, nil)
+		case "function":
+			name := abi.overloadedMethodName(field.Name)
+			abi.Methods[name] = NewMethod(name, field.Name, Function, field.StateMutability, field.Constant, field.Payable, field.Inputs, field.Outputs)
+		case "fallback":
+			// New introduced function type in v0.6.0, check more detail
+			// here https://solidity.readthedocs.io/en/v0.6.0/contracts.html#fallback-function
+			if abi.HasFallback() {
+				return errors.New("only single fallback is allowed")
 			}
-		// empty defaults to function according to the abi spec
-		case "function", "":
-			name := field.Name
-			_, ok := abi.Methods[name]
-			for idx := 0; ok; idx++ {
-				name = fmt.Sprintf("%s%d", field.Name, idx)
-				_, ok = abi.Methods[name]
+			abi.Fallback = NewMethod("", "", Fallback, field.StateMutability, field.Constant, field.Payable, nil, nil)
+		case "receive":
+			// New introduced function type in v0.6.0, check more detail
+			// here https://solidity.readthedocs.io/en/v0.6.0/contracts.html#fallback-function
+			if abi.HasReceive() {
+				return errors.New("only single receive is allowed")
 			}
-			isConst := field.Constant || field.StateMutability == "pure" || field.StateMutability == "view"
-			method := Method{
-				Name:    name,
-				RawName: field.Name,
-				Const:   isConst,
-				Inputs:  field.Inputs,
-				Outputs: field.Outputs,
+			if field.StateMutability != "payable" {
+				return errors.New("the statemutability of receive can only be payable")
 			}
-			abi.Methods[name] = method
-			// UsingOVM specific changes
-			// Add method to the id cache
-			sigdata := method.ID()
-			abi.MethodsById[[4]byte{sigdata[0], sigdata[1], sigdata[2], sigdata[3]}] = &method
+			abi.Receive = NewMethod("", "", Receive, field.StateMutability, field.Constant, field.Payable, nil, nil)
 		case "event":
-			name := field.Name
-			_, ok := abi.Events[name]
-			for idx := 0; ok; idx++ {
-				name = fmt.Sprintf("%s%d", field.Name, idx)
-				_, ok = abi.Events[name]
-			}
-			abi.Events[name] = Event{
-				Name:      name,
-				RawName:   field.Name,
-				Anonymous: field.Anonymous,
-				Inputs:    field.Inputs,
-			}
+			name := abi.overloadedEventName(field.Name)
+			abi.Events[name] = NewEvent(name, field.Name, field.Anonymous, field.Inputs)
+		default:
+			return fmt.Errorf("abi: could not recognize type %v of field %v", field.Type, field.Name)
 		}
 	}
-
 	return nil
 }
 
-// MethodById looks up a method by the 4-byte id
-// returns nil if none found
+// overloadedMethodName returns the next available name for a given function.
+// Needed since solidity allows for function overload.
+//
+// e.g. if the abi contains Methods send, send1
+// overloadedMethodName would return send2 for input send.
+func (abi *ABI) overloadedMethodName(rawName string) string {
+	name := rawName
+	_, ok := abi.Methods[name]
+	for idx := 0; ok; idx++ {
+		name = fmt.Sprintf("%s%d", rawName, idx)
+		_, ok = abi.Methods[name]
+	}
+	return name
+}
+
+// overloadedEventName returns the next available name for a given event.
+// Needed since solidity allows for event overload.
+//
+// e.g. if the abi contains events received, received1
+// overloadedEventName would return received2 for input received.
+func (abi *ABI) overloadedEventName(rawName string) string {
+	name := rawName
+	_, ok := abi.Events[name]
+	for idx := 0; ok; idx++ {
+		name = fmt.Sprintf("%s%d", rawName, idx)
+		_, ok = abi.Events[name]
+	}
+	return name
+}
+
+// MethodById looks up a method by the 4-byte id,
+// returns nil if none found.
 func (abi *ABI) MethodById(sigdata []byte) (*Method, error) {
 	if len(sigdata) < 4 {
 		return nil, fmt.Errorf("data too short (%d bytes) for abi method lookup", len(sigdata))
 	}
-
-	// UsingOVM specific changes
-	// Use the method cache to prevent the need to iterate and hash
-	// each method in the ABI
-	method, exist := abi.MethodsById[[4]byte{sigdata[0], sigdata[1], sigdata[2], sigdata[3]}]
-	if !exist {
-		return nil, fmt.Errorf("no method with id: %#x", sigdata[:4])
+	for _, method := range abi.Methods {
+		if bytes.Equal(method.ID, sigdata[:4]) {
+			return &method, nil
+		}
 	}
-	return method, nil
+	return nil, fmt.Errorf("no method with id: %#x", sigdata[:4])
 }
 
 // EventByID looks an event up by its topic hash in the
 // ABI and returns nil if none found.
 func (abi *ABI) EventByID(topic common.Hash) (*Event, error) {
 	for _, event := range abi.Events {
-		if bytes.Equal(event.ID().Bytes(), topic.Bytes()) {
+		if bytes.Equal(event.ID.Bytes(), topic.Bytes()) {
 			return &event, nil
 		}
 	}
 	return nil, fmt.Errorf("no event with id: %#x", topic.Hex())
 }
 
-// UsingOVM
-// Both RevertSelector and UnpackRevert were pulled from upstream
-// geth as they were not present in the version of geth that this
-// codebase was forked from. These are useful for displaying revert
-// messages to users when they use `eth_call`
-// RevertSelector is a special function selector for revert reason unpacking.
-var RevertSelector = crypto.Keccak256([]byte("Error(string)"))[:4]
+// HasFallback returns an indicator whether a fallback function is included.
+func (abi *ABI) HasFallback() bool {
+	return abi.Fallback.Type == Fallback
+}
+
+// HasReceive returns an indicator whether a receive function is included.
+func (abi *ABI) HasReceive() bool {
+	return abi.Receive.Type == Receive
+}
+
+// revertSelector is a special function selector for revert reason unpacking.
+var revertSelector = crypto.Keccak256([]byte("Error(string)"))[:4]
 
 // UnpackRevert resolves the abi-encoded revert reason. According to the solidity
-// docs https://docs.soliditylang.org/en/v0.8.4/control-structures.html#revert,
+// spec https://solidity.readthedocs.io/en/latest/control-structures.html#revert,
 // the provided revert reason is abi-encoded as if it were a call to a function
 // `Error(string)`. So it's a special tool for it.
 func UnpackRevert(data []byte) (string, error) {
 	if len(data) < 4 {
 		return "", errors.New("invalid data for unpacking")
 	}
-	if !bytes.Equal(data[:4], RevertSelector) {
+	if !bytes.Equal(data[:4], revertSelector) {
 		return "", errors.New("invalid data for unpacking")
 	}
 	typ, _ := NewType("string", "", nil)
-	unpacked, err := (Arguments{{Type: typ}}).UnpackValues(data[4:])
+	unpacked, err := (Arguments{{Type: typ}}).Unpack(data[4:])
 	if err != nil {
 		return "", err
 	}

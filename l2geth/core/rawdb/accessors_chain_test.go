@@ -22,7 +22,9 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math/big"
+	"math/rand"
 	"os"
+	"reflect"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -83,7 +85,7 @@ func TestBodyStorage(t *testing.T) {
 	WriteBody(db, hash, 0, body)
 	if entry := ReadBody(db, hash, 0); entry == nil {
 		t.Fatalf("Stored body not found")
-	} else if types.DeriveSha(types.Transactions(entry.Transactions)) != types.DeriveSha(types.Transactions(body.Transactions)) || types.CalcUncleHash(entry.Uncles) != types.CalcUncleHash(body.Uncles) {
+	} else if types.DeriveSha(types.Transactions(entry.Transactions), newHasher()) != types.DeriveSha(types.Transactions(body.Transactions), newHasher()) || types.CalcUncleHash(entry.Uncles) != types.CalcUncleHash(body.Uncles) {
 		t.Fatalf("Retrieved body mismatch: have %v, want %v", entry, body)
 	}
 	if entry := ReadBodyRLP(db, hash, 0); entry == nil {
@@ -137,7 +139,7 @@ func TestBlockStorage(t *testing.T) {
 	}
 	if entry := ReadBody(db, block.Hash(), block.NumberU64()); entry == nil {
 		t.Fatalf("Stored body not found")
-	} else if types.DeriveSha(types.Transactions(entry.Transactions)) != types.DeriveSha(block.Transactions()) || types.CalcUncleHash(entry.Uncles) != types.CalcUncleHash(block.Uncles()) {
+	} else if types.DeriveSha(types.Transactions(entry.Transactions), newHasher()) != types.DeriveSha(block.Transactions(), newHasher()) || types.CalcUncleHash(entry.Uncles) != types.CalcUncleHash(block.Uncles()) {
 		t.Fatalf("Retrieved body mismatch: have %v, want %v", entry, block.Body())
 	}
 	// Delete the block and verify the execution
@@ -184,6 +186,75 @@ func TestPartialBlockStorage(t *testing.T) {
 		t.Fatalf("Stored block not found")
 	} else if entry.Hash() != block.Hash() {
 		t.Fatalf("Retrieved block mismatch: have %v, want %v", entry, block)
+	}
+}
+
+// Tests block storage and retrieval operations.
+func TestBadBlockStorage(t *testing.T) {
+	db := NewMemoryDatabase()
+
+	// Create a test block to move around the database and make sure it's really new
+	block := types.NewBlockWithHeader(&types.Header{
+		Number:      big.NewInt(1),
+		Extra:       []byte("bad block"),
+		UncleHash:   types.EmptyUncleHash,
+		TxHash:      types.EmptyRootHash,
+		ReceiptHash: types.EmptyRootHash,
+	})
+	if entry := ReadBadBlock(db, block.Hash()); entry != nil {
+		t.Fatalf("Non existent block returned: %v", entry)
+	}
+	// Write and verify the block in the database
+	WriteBadBlock(db, block)
+	if entry := ReadBadBlock(db, block.Hash()); entry == nil {
+		t.Fatalf("Stored block not found")
+	} else if entry.Hash() != block.Hash() {
+		t.Fatalf("Retrieved block mismatch: have %v, want %v", entry, block)
+	}
+	// Write one more bad block
+	blockTwo := types.NewBlockWithHeader(&types.Header{
+		Number:      big.NewInt(2),
+		Extra:       []byte("bad block two"),
+		UncleHash:   types.EmptyUncleHash,
+		TxHash:      types.EmptyRootHash,
+		ReceiptHash: types.EmptyRootHash,
+	})
+	WriteBadBlock(db, blockTwo)
+
+	// Write the block one again, should be filtered out.
+	WriteBadBlock(db, block)
+	badBlocks := ReadAllBadBlocks(db)
+	if len(badBlocks) != 2 {
+		t.Fatalf("Failed to load all bad blocks")
+	}
+
+	// Write a bunch of bad blocks, all the blocks are should sorted
+	// in reverse order. The extra blocks should be truncated.
+	for _, n := range rand.Perm(100) {
+		block := types.NewBlockWithHeader(&types.Header{
+			Number:      big.NewInt(int64(n)),
+			Extra:       []byte("bad block"),
+			UncleHash:   types.EmptyUncleHash,
+			TxHash:      types.EmptyRootHash,
+			ReceiptHash: types.EmptyRootHash,
+		})
+		WriteBadBlock(db, block)
+	}
+	badBlocks = ReadAllBadBlocks(db)
+	if len(badBlocks) != badBlockToKeep {
+		t.Fatalf("The number of persised bad blocks in incorrect %d", len(badBlocks))
+	}
+	for i := 0; i < len(badBlocks)-1; i++ {
+		if badBlocks[i].NumberU64() < badBlocks[i+1].NumberU64() {
+			t.Fatalf("The bad blocks are not sorted #[%d](%d) < #[%d](%d)", i, i+1, badBlocks[i].NumberU64(), badBlocks[i+1].NumberU64())
+		}
+	}
+
+	// Delete all bad blocks
+	DeleteBadBlocks(db)
+	badBlocks = ReadAllBadBlocks(db)
+	if len(badBlocks) != 0 {
+		t.Fatalf("Failed to delete bad blocks")
 	}
 }
 
@@ -369,10 +440,11 @@ func TestAncientStorage(t *testing.T) {
 	}
 	defer os.Remove(frdir)
 
-	db, err := NewDatabaseWithFreezer(NewMemoryDatabase(), frdir, "")
+	db, err := NewDatabaseWithFreezer(NewMemoryDatabase(), frdir, "", false)
 	if err != nil {
 		t.Fatalf("failed to create database with ancient backend")
 	}
+	defer db.Close()
 	// Create a test block
 	block := types.NewBlockWithHeader(&types.Header{
 		Number:      big.NewInt(0),
@@ -425,53 +497,34 @@ func TestAncientStorage(t *testing.T) {
 	}
 }
 
-func TestBlockMetaStorage(t *testing.T) {
+func TestCanonicalHashIteration(t *testing.T) {
+	var cases = []struct {
+		from, to uint64
+		limit    int
+		expect   []uint64
+	}{
+		{1, 8, 0, nil},
+		{1, 8, 1, []uint64{1}},
+		{1, 8, 10, []uint64{1, 2, 3, 4, 5, 6, 7}},
+		{1, 9, 10, []uint64{1, 2, 3, 4, 5, 6, 7, 8}},
+		{2, 9, 10, []uint64{2, 3, 4, 5, 6, 7, 8}},
+		{9, 10, 10, nil},
+	}
+	// Test empty db iteration
 	db := NewMemoryDatabase()
-
-	index1 := uint64(1)
-	tx1 := types.NewTransaction(1, common.HexToAddress("0x1"), big.NewInt(1), 1, big.NewInt(1), nil)
-	tx1Meta := types.NewTransactionMeta(nil, 0, nil, types.QueueOriginSequencer, &index1, nil, nil)
-	tx1.SetTransactionMeta(tx1Meta)
-
-	WriteTransactionMeta(db, index1, tx1.GetMeta())
-	meta := ReadTransactionMeta(db, index1)
-
-	if meta.L1MessageSender != nil {
-		t.Fatalf("Could not recover L1MessageSender")
+	numbers, _ := ReadAllCanonicalHashes(db, 0, 10, 10)
+	if len(numbers) != 0 {
+		t.Fatalf("No entry should be returned to iterate an empty db")
 	}
-	if meta.L1BlockNumber != nil {
-		t.Fatalf("Could not recover L1BlockNumber")
+	// Fill database with testing data.
+	for i := uint64(1); i <= 8; i++ {
+		WriteCanonicalHash(db, common.Hash{}, i)
+		WriteTd(db, common.Hash{}, i, big.NewInt(10)) // Write some interferential data
 	}
-	if meta.Index == nil {
-		t.Fatalf("Could not recover index")
-	}
-	if *meta.Index != 1 {
-		t.Fatalf("Could not recover index")
-	}
-
-	DeleteTransactionMeta(db, index1)
-	postDelete := ReadTransactionMeta(db, index1)
-
-	if postDelete != nil {
-		t.Fatalf("Delete did not work")
-	}
-
-	addr := common.HexToAddress("095e7baea6a6c7c4c2dfeb977efac326af552d87")
-	l1BlockNumber := big.NewInt(777)
-
-	index2 := uint64(2)
-	tx2 := types.NewTransaction(2, common.HexToAddress("0x02"), big.NewInt(2), 2, big.NewInt(2), nil)
-	tx2Meta := types.NewTransactionMeta(l1BlockNumber, 0, &addr, types.QueueOriginSequencer, nil, nil, nil)
-	tx2.SetTransactionMeta(tx2Meta)
-
-	WriteTransactionMeta(db, index2, tx2.GetMeta())
-	meta2 := ReadTransactionMeta(db, index2)
-
-	if !bytes.Equal(meta2.L1MessageSender.Bytes(), addr.Bytes()) {
-		t.Fatalf("Could not recover L1MessageSender")
-	}
-
-	if meta2.L1BlockNumber.Cmp(l1BlockNumber) != 0 {
-		t.Fatalf("Could not recover L1BlockNumber")
+	for i, c := range cases {
+		numbers, _ := ReadAllCanonicalHashes(db, c.from, c.to, c.limit)
+		if !reflect.DeepEqual(numbers, c.expect) {
+			t.Fatalf("Case %d failed, want %v, got %v", i, c.expect, numbers)
+		}
 	}
 }

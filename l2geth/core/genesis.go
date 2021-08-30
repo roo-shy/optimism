@@ -22,10 +22,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"math/big"
-	"net/http"
-	"sort"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -39,8 +36,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
-	"github.com/ethereum/go-ethereum/rollup/dump"
-	"github.com/ethereum/go-ethereum/rollup/rcfg"
+	"github.com/ethereum/go-ethereum/trie"
 )
 
 //go:generate gencodec -type Genesis -field-override genesisSpecMarshaling -out gen_genesis.go
@@ -66,15 +62,7 @@ type Genesis struct {
 	Number     uint64      `json:"number"`
 	GasUsed    uint64      `json:"gasUsed"`
 	ParentHash common.Hash `json:"parentHash"`
-
-	// OVM Specific, used to initialize the l1XDomainMessengerAddress
-	// in the genesis state
-	L1FeeWalletAddress            common.Address `json:"-"`
-	L1CrossDomainMessengerAddress common.Address `json:"-"`
-	AddressManagerOwnerAddress    common.Address `json:"-"`
-	GasPriceOracleOwnerAddress    common.Address `json:"-"`
-	L1StandardBridgeAddress       common.Address `json:"-"`
-	ChainID                       *big.Int       `json:"-"`
+	BaseFee    *big.Int    `json:"baseFeePerGas"`
 }
 
 // GenesisAlloc specifies the initial state that is part of the genesis block.
@@ -110,6 +98,7 @@ type genesisSpecMarshaling struct {
 	GasUsed    math.HexOrDecimal64
 	Number     math.HexOrDecimal64
 	Difficulty *math.HexOrDecimal256
+	BaseFee    *math.HexOrDecimal256
 	Alloc      map[common.UnprefixedAddress]GenesisAccount
 }
 
@@ -166,10 +155,10 @@ func (e *GenesisMismatchError) Error() string {
 //
 // The returned chain configuration is never nil.
 func SetupGenesisBlock(db ethdb.Database, genesis *Genesis) (*params.ChainConfig, common.Hash, error) {
-	return SetupGenesisBlockWithOverride(db, genesis, nil, nil)
+	return SetupGenesisBlockWithOverride(db, genesis, nil)
 }
 
-func SetupGenesisBlockWithOverride(db ethdb.Database, genesis *Genesis, overrideIstanbul, overrideMuirGlacier *big.Int) (*params.ChainConfig, common.Hash, error) {
+func SetupGenesisBlockWithOverride(db ethdb.Database, genesis *Genesis, overrideLondon *big.Int) (*params.ChainConfig, common.Hash, error) {
 	if genesis != nil && genesis.Config == nil {
 		return params.AllEthashProtocolChanges, common.Hash{}, errGenesisNoConfig
 	}
@@ -188,11 +177,10 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, genesis *Genesis, override
 		}
 		return genesis.Config, block.Hash(), nil
 	}
-
 	// We have the genesis block in database(perhaps in ancient database)
 	// but the corresponding state is missing.
 	header := rawdb.ReadHeader(db, stored, 0)
-	if _, err := state.New(header.Root, state.NewDatabaseWithCache(db, 0)); err != nil {
+	if _, err := state.New(header.Root, state.NewDatabaseWithConfig(db, nil), nil); err != nil {
 		if genesis == nil {
 			genesis = DefaultGenesisBlock()
 		}
@@ -207,7 +195,6 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, genesis *Genesis, override
 		}
 		return genesis.Config, block.Hash(), nil
 	}
-
 	// Check whether the genesis block is already written.
 	if genesis != nil {
 		hash := genesis.ToBlock(nil).Hash()
@@ -215,14 +202,10 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, genesis *Genesis, override
 			return genesis.Config, hash, &GenesisMismatchError{stored, hash}
 		}
 	}
-
 	// Get the existing chain configuration.
 	newcfg := genesis.configOrDefault(stored)
-	if overrideIstanbul != nil {
-		newcfg.IstanbulBlock = overrideIstanbul
-	}
-	if overrideMuirGlacier != nil {
-		newcfg.MuirGlacierBlock = overrideMuirGlacier
+	if overrideLondon != nil {
+		newcfg.LondonBlock = overrideLondon
 	}
 	if err := newcfg.CheckConfigForkOrder(); err != nil {
 		return newcfg, common.Hash{}, err
@@ -239,7 +222,6 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, genesis *Genesis, override
 	if genesis == nil && stored != params.MainnetGenesisHash {
 		return storedcfg, stored, nil
 	}
-
 	// Check config compatibility and write the config. Compatibility errors
 	// are returned to the caller unless we're already at block zero.
 	height := rawdb.ReadHeaderNumber(db, rawdb.ReadHeadHeaderHash(db))
@@ -260,73 +242,14 @@ func (g *Genesis) configOrDefault(ghash common.Hash) *params.ChainConfig {
 		return g.Config
 	case ghash == params.MainnetGenesisHash:
 		return params.MainnetChainConfig
-	case ghash == params.TestnetGenesisHash:
-		return params.TestnetChainConfig
+	case ghash == params.RopstenGenesisHash:
+		return params.RopstenChainConfig
+	case ghash == params.RinkebyGenesisHash:
+		return params.RinkebyChainConfig
+	case ghash == params.GoerliGenesisHash:
+		return params.GoerliChainConfig
 	default:
 		return params.AllEthashProtocolChanges
-	}
-}
-
-// UsingOVM
-// ApplyOvmStateToState applies the initial OVM state to a statedb.
-// It inserts a bunch of runtime config into the state.
-// It is fragile to storage slots changing as it directly writes to storage
-// slots instead of applying messages with well formed calldata.
-// This function could be replaced in the future using GenesisAlloc
-func ApplyOvmStateToState(statedb *state.StateDB, stateDump *dump.OvmDump, l1XDomainMessengerAddress, l1StandardBridgeAddress, addrManagerOwnerAddress, gpoOwnerAddress, l1FeeWalletAddress common.Address, chainID *big.Int, gasLimit uint64) {
-	if len(stateDump.Accounts) == 0 {
-		return
-	}
-	acctKeys := make([]string, len(stateDump.Accounts))
-	i := 0
-	for k := range stateDump.Accounts {
-		acctKeys[i] = k
-		i++
-	}
-	sort.Strings(acctKeys)
-	for _, acctKey := range acctKeys {
-		account := stateDump.Accounts[acctKey]
-		statedb.SetCode(account.Address, common.FromHex(account.Code))
-		statedb.SetNonce(account.Address, account.Nonce)
-		for key, val := range account.Storage {
-			statedb.SetState(account.Address, key, common.HexToHash(val))
-		}
-	}
-	AddressManager, ok := stateDump.Accounts["Lib_AddressManager"]
-	if ok {
-		// Set the owner of the address manager
-		ownerSlot := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000000")
-		ownerValue := common.BytesToHash(addrManagerOwnerAddress.Bytes())
-		statedb.SetState(AddressManager.Address, ownerSlot, ownerValue)
-		log.Info("Setting AddressManager Owner", "owner", addrManagerOwnerAddress.Hex())
-		// Set the storage slot associated with the cross domain messenger
-		// to the cross domain messenger address.
-		log.Info("Setting OVM_L1CrossDomainMessenger in AddressManager", "address", l1XDomainMessengerAddress.Hex())
-		l1MessengerSlot := common.HexToHash("0x515216935740e67dfdda5cf8e248ea32b3277787818ab59153061ac875c9385e")
-		l1MessengerValue := common.BytesToHash(l1XDomainMessengerAddress.Bytes())
-		statedb.SetState(AddressManager.Address, l1MessengerSlot, l1MessengerValue)
-	}
-	OVM_L2StandardBridge, ok := stateDump.Accounts["OVM_L2StandardBridge"]
-	if ok {
-		log.Info("Setting OVM_L1StandardBridge in OVM_L2StandardBridge", "address", l1StandardBridgeAddress.Hex())
-		// Set the gateway of OVM_L2StandardBridge at new dump
-		l1BridgeSlot := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001")
-		l1BridgeValue := common.BytesToHash(l1StandardBridgeAddress.Bytes())
-		statedb.SetState(OVM_L2StandardBridge.Address, l1BridgeSlot, l1BridgeValue)
-	}
-	OVM_SequencerFeeVault, ok := stateDump.Accounts["OVM_SequencerFeeVault"]
-	if ok {
-		log.Info("Setting l1FeeWallet in OVM_SequencerFeeVault", "wallet", l1FeeWalletAddress.Hex())
-		l1FeeWalletSlot := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000000")
-		l1FeeWalletValue := common.BytesToHash(l1FeeWalletAddress.Bytes())
-		statedb.SetState(OVM_SequencerFeeVault.Address, l1FeeWalletSlot, l1FeeWalletValue)
-		GasPriceOracle, ok := stateDump.Accounts["OVM_GasPriceOracle"]
-		if ok {
-			ownerSlot := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000000")
-			ownerValue := common.BytesToHash(gpoOwnerAddress.Bytes())
-			statedb.SetState(GasPriceOracle.Address, ownerSlot, ownerValue)
-			log.Info("Setting GasPriceOracle Owner", "owner", gpoOwnerAddress.Hex())
-		}
 	}
 }
 
@@ -336,14 +259,10 @@ func (g *Genesis) ToBlock(db ethdb.Database) *types.Block {
 	if db == nil {
 		db = rawdb.NewMemoryDatabase()
 	}
-	statedb, _ := state.New(common.Hash{}, state.NewDatabase(db))
-
-	// Apply the OVM genesis state, including setting storage dynamically
-	// in particular system contracts.
-	if rcfg.UsingOVM {
-		ApplyOvmStateToState(statedb, g.Config.StateDump, g.L1CrossDomainMessengerAddress, g.L1StandardBridgeAddress, g.AddressManagerOwnerAddress, g.GasPriceOracleOwnerAddress, g.L1FeeWalletAddress, g.ChainID, g.GasLimit)
+	statedb, err := state.New(common.Hash{}, state.NewDatabase(db), nil)
+	if err != nil {
+		panic(err)
 	}
-
 	for addr, account := range g.Alloc {
 		statedb.AddBalance(addr, account.Balance)
 		statedb.SetCode(addr, account.Code)
@@ -361,6 +280,7 @@ func (g *Genesis) ToBlock(db ethdb.Database) *types.Block {
 		Extra:      g.ExtraData,
 		GasLimit:   g.GasLimit,
 		GasUsed:    g.GasUsed,
+		BaseFee:    g.BaseFee,
 		Difficulty: g.Difficulty,
 		MixDigest:  g.Mixhash,
 		Coinbase:   g.Coinbase,
@@ -372,10 +292,17 @@ func (g *Genesis) ToBlock(db ethdb.Database) *types.Block {
 	if g.Difficulty == nil {
 		head.Difficulty = params.GenesisDifficulty
 	}
+	if g.Config != nil && g.Config.IsLondon(common.Big0) {
+		if g.BaseFee != nil {
+			head.BaseFee = g.BaseFee
+		} else {
+			head.BaseFee = new(big.Int).SetUint64(params.InitialBaseFee)
+		}
+	}
 	statedb.Commit(false)
-	statedb.Database().TrieDB().Commit(root, true)
+	statedb.Database().TrieDB().Commit(root, true, nil)
 
-	return types.NewBlock(head, nil, nil, nil)
+	return types.NewBlock(head, nil, nil, nil, trie.NewStackTrie(nil))
 }
 
 // Commit writes the block and state of a genesis specification to the database.
@@ -415,7 +342,10 @@ func (g *Genesis) MustCommit(db ethdb.Database) *types.Block {
 
 // GenesisBlockForTesting creates and writes a block in which addr has the given wei balance.
 func GenesisBlockForTesting(db ethdb.Database, addr common.Address, balance *big.Int) *types.Block {
-	g := Genesis{Alloc: GenesisAlloc{addr: {Balance: balance}}}
+	g := Genesis{
+		Alloc:   GenesisAlloc{addr: {Balance: balance}},
+		BaseFee: big.NewInt(params.InitialBaseFee),
+	}
 	return g.MustCommit(db)
 }
 
@@ -431,15 +361,15 @@ func DefaultGenesisBlock() *Genesis {
 	}
 }
 
-// DefaultTestnetGenesisBlock returns the Ropsten network genesis block.
-func DefaultTestnetGenesisBlock() *Genesis {
+// DefaultRopstenGenesisBlock returns the Ropsten network genesis block.
+func DefaultRopstenGenesisBlock() *Genesis {
 	return &Genesis{
-		Config:     params.TestnetChainConfig,
+		Config:     params.RopstenChainConfig,
 		Nonce:      66,
 		ExtraData:  hexutil.MustDecode("0x3535353535353535353535353535353535353535353535353535353535353535"),
 		GasLimit:   16777216,
 		Difficulty: big.NewInt(1048576),
-		Alloc:      decodePrealloc(testnetAllocData),
+		Alloc:      decodePrealloc(ropstenAllocData),
 	}
 }
 
@@ -467,47 +397,21 @@ func DefaultGoerliGenesisBlock() *Genesis {
 	}
 }
 
-// UsingOVM
 // DeveloperGenesisBlock returns the 'geth --dev' genesis block.
-// Additional runtime parameters are passed through that impact
-// the genesis state. An "incompatible genesis block" error means that
-// these params were altered since the initial creation of the datadir.
-func DeveloperGenesisBlock(period uint64, faucet, l1XDomainMessengerAddress common.Address, l1StandardBridgeAddress common.Address, addrManagerOwnerAddress, gpoOwnerAddress, l1FeeWalletAddress common.Address, stateDumpPath string, chainID *big.Int, gasLimit uint64) *Genesis {
+func DeveloperGenesisBlock(period uint64, faucet common.Address) *Genesis {
 	// Override the default period to the user requested one
 	config := *params.AllCliqueProtocolChanges
-	config.Clique.Period = period
-
-	if chainID != nil {
-		config.ChainID = chainID
+	config.Clique = &params.CliqueConfig{
+		Period: period,
+		Epoch:  config.Clique.Epoch,
 	}
-
-	stateDump := dump.OvmDump{}
-	if rcfg.UsingOVM {
-		// Fetch the state dump from the state dump path
-		// The system cannot start without a state dump as it depends on
-		// the ABIs that are included in the state dump. Check that all
-		// required state dump entries are present to prevent a faulty
-		// state dump from being used
-		if stateDumpPath == "" {
-			panic("Must pass state dump path")
-		}
-		log.Info("Fetching state dump", "path", stateDumpPath)
-		err := fetchStateDump(stateDumpPath, &stateDump)
-		if err != nil {
-			panic(fmt.Sprintf("Cannot fetch state dump: %s", err))
-		}
-		_, ok := stateDump.Accounts["Lib_AddressManager"]
-		if !ok {
-			panic("Lib_AddressManager not in state dump")
-		}
-	}
-	config.StateDump = &stateDump
 
 	// Assemble and return the genesis with the precompiles and faucet pre-funded
 	return &Genesis{
 		Config:     &config,
 		ExtraData:  append(append(make([]byte, 32), faucet[:]...), make([]byte, crypto.SignatureLength)...),
-		GasLimit:   gasLimit,
+		GasLimit:   11500000,
+		BaseFee:    big.NewInt(params.InitialBaseFee),
 		Difficulty: big.NewInt(1),
 		Alloc: map[common.Address]GenesisAccount{
 			common.BytesToAddress([]byte{1}): {Balance: big.NewInt(1)}, // ECRecover
@@ -518,16 +422,9 @@ func DeveloperGenesisBlock(period uint64, faucet, l1XDomainMessengerAddress comm
 			common.BytesToAddress([]byte{6}): {Balance: big.NewInt(1)}, // ECAdd
 			common.BytesToAddress([]byte{7}): {Balance: big.NewInt(1)}, // ECScalarMul
 			common.BytesToAddress([]byte{8}): {Balance: big.NewInt(1)}, // ECPairing
+			common.BytesToAddress([]byte{9}): {Balance: big.NewInt(1)}, // BLAKE2b
+			faucet:                           {Balance: new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 256), big.NewInt(9))},
 		},
-		// UsingOVM
-		// Add additional properties to the genesis block so that they can
-		// be added into the initial genesis state at runtime
-		L1CrossDomainMessengerAddress: l1XDomainMessengerAddress,
-		L1FeeWalletAddress:            l1FeeWalletAddress,
-		AddressManagerOwnerAddress:    addrManagerOwnerAddress,
-		GasPriceOracleOwnerAddress:    gpoOwnerAddress,
-		L1StandardBridgeAddress:       l1StandardBridgeAddress,
-		ChainID:                       config.ChainID,
 	}
 }
 
@@ -541,31 +438,4 @@ func decodePrealloc(data string) GenesisAlloc {
 		ga[common.BigToAddress(account.Addr)] = GenesisAccount{Balance: account.Balance}
 	}
 	return ga
-}
-
-// UsingOVM
-// fetchStateDump will fetch a state dump from a remote HTTP endpoint.
-// This state dump includes the OVM system contracts as well as previous
-// user state if the network has previously had a regenesis.
-func fetchStateDump(path string, stateDump *dump.OvmDump) error {
-	if stateDump == nil {
-		return errors.New("Unable to fetch state dump")
-	}
-	resp, err := http.Get(path)
-	if err != nil {
-		return fmt.Errorf("Unable to GET state dump: %w", err)
-	}
-	if resp.StatusCode >= 400 {
-		return errors.New("State dump not found")
-	}
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("Unable to read response body: %w", err)
-	}
-	err = json.Unmarshal(body, stateDump)
-	if err != nil {
-		return fmt.Errorf("Unable to unmarshal response body: %w", err)
-	}
-	return nil
 }

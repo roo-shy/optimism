@@ -17,7 +17,6 @@
 package tests
 
 import (
-	"fmt"
 	"testing"
 )
 
@@ -26,11 +25,13 @@ func TestBlockchain(t *testing.T) {
 
 	bt := new(testMatcher)
 	// General state tests are 'exported' as blockchain tests, but we can run them natively.
+	// For speedier CI-runs, the line below can be uncommented, so those are skipped.
+	// For now, in hardfork-times (Berlin), we run the tests both as StateTests and
+	// as blockchain tests, since the latter also covers things like receipt root
 	bt.skipLoad(`^GeneralStateTests/`)
+
 	// Skip random failures due to selfish mining test
 	bt.skipLoad(`.*bcForgedTest/bcForkUncle\.json`)
-	// Skip these tests because the OVM gas limit will be different
-	bt.skipLoad(`InvalidBlocks/bcInvalidHeaderTest/wrongGasLimit.json`)
 
 	// Slow tests
 	bt.slow(`.*bcExploitTest/DelegateCallSpam.json`)
@@ -42,24 +43,17 @@ func TestBlockchain(t *testing.T) {
 
 	// Very slow test
 	bt.skipLoad(`.*/stTimeConsuming/.*`)
-
-	// OVM breaks these tests
-	bt.skipLoad(`^InvalidBlocks`)
-	bt.skipLoad(`^ValidBlocks`)
-	bt.skipLoad(`^TransitionTests`)
-	bt.skipLoad(`^randomStatetest391.json`)
-
 	// test takes a lot for time and goes easily OOM because of sha3 calculation on a huge range,
 	// using 4.6 TGas
 	bt.skipLoad(`.*randomStatetest94.json.*`)
-
 	bt.walk(t, blockTestDir, func(t *testing.T, name string, test *BlockTest) {
-		if err := bt.checkFailure(t, name, test.Run()); err != nil {
-			fmt.Println("******* NAME: ", name)
-			t.Error(err)
+		if err := bt.checkFailure(t, test.Run(false)); err != nil {
+			t.Errorf("test without snapshotter failed: %v", err)
+		}
+		if err := bt.checkFailure(t, test.Run(true)); err != nil {
+			t.Errorf("test with snapshotter failed: %v", err)
 		}
 	})
-
 	// There is also a LegacyTests folder, containing blockchain tests generated
 	// prior to Istanbul. However, they are all derived from GeneralStateTests,
 	// which run natively, so there's no reason to run them here.

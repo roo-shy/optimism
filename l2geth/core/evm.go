@@ -23,12 +23,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/rollup/rcfg"
 )
-
-// DefaultL1MessageSender is the default L1MessageSender value attached to a transaction that is
-// not an L1 to L2 message.
-var DefaultL1MessageSender = common.HexToAddress("0x00000000000000000000000000000000000beef")
 
 // ChainContext supports retrieving headers and consensus parameters from the
 // current blockchain to be used during transaction processing.
@@ -40,75 +35,71 @@ type ChainContext interface {
 	GetHeader(common.Hash, uint64) *types.Header
 }
 
-// NewEVMContext creates a new context for use in the EVM.
-func NewEVMContext(msg Message, header *types.Header, chain ChainContext, author *common.Address) vm.Context {
+// NewEVMBlockContext creates a new context for use in the EVM.
+func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common.Address) vm.BlockContext {
+	var (
+		beneficiary common.Address
+		baseFee     *big.Int
+	)
+
 	// If we don't have an explicit author (i.e. not mining), extract from the header
-	var beneficiary common.Address
 	if author == nil {
 		beneficiary, _ = chain.Engine().Author(header) // Ignore error, we're past header validation
 	} else {
 		beneficiary = *author
 	}
-	if rcfg.UsingOVM {
-		// When using the OVM, we must:
-		// (1) Attach the L1MessageSender context value and
-		// (2) Set the BlockNumber to be the msg.L1BlockNumber
-		// (3) Set the Time to be the msg.L1Timestamp
-		var l1MessageSender common.Address
-		if msg.L1MessageSender() == nil {
-			l1MessageSender = DefaultL1MessageSender
-		} else {
-			l1MessageSender = *msg.L1MessageSender()
-		}
-		return vm.Context{
-			CanTransfer:     CanTransfer,
-			Transfer:        Transfer,
-			GetHash:         GetHashFn(header, chain),
-			Origin:          msg.From(),
-			Coinbase:        beneficiary,
-			BlockNumber:     msg.L1BlockNumber(),
-			Time:            new(big.Int).SetUint64(msg.L1Timestamp()),
-			Difficulty:      new(big.Int).Set(header.Difficulty),
-			GasLimit:        header.GasLimit,
-			GasPrice:        new(big.Int).Set(msg.GasPrice()),
-			L1MessageSender: l1MessageSender,
-		}
-	} else {
-		return vm.Context{
-			CanTransfer: CanTransfer,
-			Transfer:    Transfer,
-			GetHash:     GetHashFn(header, chain),
-			Origin:      msg.From(),
-			Coinbase:    beneficiary,
-			BlockNumber: new(big.Int).Set(header.Number),
-			Time:        new(big.Int).SetUint64(header.Time),
-			Difficulty:  new(big.Int).Set(header.Difficulty),
-			GasLimit:    header.GasLimit,
-			GasPrice:    new(big.Int).Set(msg.GasPrice()),
-		}
+	if header.BaseFee != nil {
+		baseFee = new(big.Int).Set(header.BaseFee)
+	}
+	return vm.BlockContext{
+		CanTransfer: CanTransfer,
+		Transfer:    Transfer,
+		GetHash:     GetHashFn(header, chain),
+		Coinbase:    beneficiary,
+		BlockNumber: new(big.Int).Set(header.Number),
+		Time:        new(big.Int).SetUint64(header.Time),
+		Difficulty:  new(big.Int).Set(header.Difficulty),
+		BaseFee:     baseFee,
+		GasLimit:    header.GasLimit,
+	}
+}
+
+// NewEVMTxContext creates a new transaction context for a single transaction.
+func NewEVMTxContext(msg Message) vm.TxContext {
+	return vm.TxContext{
+		Origin:   msg.From(),
+		GasPrice: new(big.Int).Set(msg.GasPrice()),
 	}
 }
 
 // GetHashFn returns a GetHashFunc which retrieves header hashes by number
 func GetHashFn(ref *types.Header, chain ChainContext) func(n uint64) common.Hash {
-	var cache map[uint64]common.Hash
+	// Cache will initially contain [refHash.parent],
+	// Then fill up with [refHash.p, refHash.pp, refHash.ppp, ...]
+	var cache []common.Hash
 
 	return func(n uint64) common.Hash {
 		// If there's no hash cache yet, make one
-		if cache == nil {
-			cache = map[uint64]common.Hash{
-				ref.Number.Uint64() - 1: ref.ParentHash,
+		if len(cache) == 0 {
+			cache = append(cache, ref.ParentHash)
+		}
+		if idx := ref.Number.Uint64() - n - 1; idx < uint64(len(cache)) {
+			return cache[idx]
+		}
+		// No luck in the cache, but we can start iterating from the last element we already know
+		lastKnownHash := cache[len(cache)-1]
+		lastKnownNumber := ref.Number.Uint64() - uint64(len(cache))
+
+		for {
+			header := chain.GetHeader(lastKnownHash, lastKnownNumber)
+			if header == nil {
+				break
 			}
-		}
-		// Try to fulfill the request from the cache
-		if hash, ok := cache[n]; ok {
-			return hash
-		}
-		// Not cached, iterate the blocks and cache the hashes
-		for header := chain.GetHeader(ref.ParentHash, ref.Number.Uint64()-1); header != nil; header = chain.GetHeader(header.ParentHash, header.Number.Uint64()-1) {
-			cache[header.Number.Uint64()-1] = header.ParentHash
-			if n == header.Number.Uint64()-1 {
-				return header.ParentHash
+			cache = append(cache, header.ParentHash)
+			lastKnownHash = header.ParentHash
+			lastKnownNumber = header.Number.Uint64() - 1
+			if n == lastKnownNumber {
+				return lastKnownHash
 			}
 		}
 		return common.Hash{}
