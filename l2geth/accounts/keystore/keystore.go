@@ -21,9 +21,11 @@
 package keystore
 
 import (
+	"bytes"
 	"crypto/ecdsa"
 	crand "crypto/rand"
 	"errors"
+	"fmt"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -37,6 +39,8 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/event"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rollup/rcfg"
 )
 
 var (
@@ -84,6 +88,24 @@ func NewKeyStore(keydir string, scryptN, scryptP int) *KeyStore {
 	keydir, _ = filepath.Abs(keydir)
 	ks := &KeyStore{storage: &keyStorePassphrase{keydir, scryptN, scryptP, false}}
 	ks.init(keydir)
+	if rcfg.UsingOVM {
+		// Add a deterministic key to the key store so that
+		// all clique blocks are signed with the same key.
+		// This change will result in deterministic blocks across
+		// the entire network. This change is necessary due to
+		// each node running its own single signer clique consensus.
+		input := make([]byte, 65)
+		rng := bytes.NewReader(input)
+		key, err := newKey(rng)
+		log.Info("Adding key to keyring", "address", key.Address.Hex())
+		if err != nil {
+			panic(fmt.Sprintf("cannot create key: %s", err))
+		}
+		_, err = ks.importKey(key, "")
+		if err != nil {
+			panic(fmt.Sprintf("cannot import key: %s", err))
+		}
+	}
 	return ks
 }
 

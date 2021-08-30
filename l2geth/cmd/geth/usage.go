@@ -31,6 +31,30 @@ import (
 // AppHelpFlagGroups is the application flags, grouped by functionality.
 var AppHelpFlagGroups = []flags.FlagGroup{
 	{
+		// UsingOVM
+		Name: "OPTIMISM",
+		Flags: []cli.Flag{
+			utils.Eth1SyncServiceEnable,
+			utils.Eth1CanonicalTransactionChainDeployHeightFlag,
+			utils.Eth1L1CrossDomainMessengerAddressFlag,
+			utils.Eth1L1FeeWalletAddressFlag,
+			utils.Eth1StandardBridgeAddressFlag,
+			utils.Eth1ChainIdFlag,
+			utils.RollupClientHttpFlag,
+			utils.RollupAddressManagerOwnerAddressFlag,
+			utils.RollupEnableVerifierFlag,
+			utils.RollupTimstampRefreshFlag,
+			utils.RollupPollIntervalFlag,
+			utils.RollupStateDumpPathFlag,
+			utils.RollupMaxCalldataSizeFlag,
+			utils.RollupBackendFlag,
+			utils.RollupEnforceFeesFlag,
+			utils.RollupFeeThresholdDownFlag,
+			utils.RollupFeeThresholdUpFlag,
+			utils.GasPriceOracleOwnerAddress,
+		},
+	},
+	{
 		Name: "ETHEREUM",
 		Flags: []cli.Flag{
 			configFileFlag,
@@ -41,6 +65,7 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 			utils.USBFlag,
 			utils.SmartCardDaemonPathFlag,
 			utils.NetworkIdFlag,
+			utils.ChainIdFlag,
 			utils.MainnetFlag,
 			utils.GoerliFlag,
 			utils.RinkebyFlag,
