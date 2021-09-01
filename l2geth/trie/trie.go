@@ -26,6 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rollup/rcfg"
 )
 
 var (
@@ -264,11 +265,15 @@ func (t *Trie) TryUpdate(key, value []byte) error {
 		}
 		t.root = n
 	} else {
-		_, n, err := t.delete(t.root, nil, k)
-		if err != nil {
-			return err
+		// Do not delete empty nodes since the operation
+		// in solidity is expensive
+		if !rcfg.UsingOVM {
+			_, n, err := t.delete(t.root, nil, k)
+			if err != nil {
+				return err
+			}
+			t.root = n
 		}
-		t.root = n
 	}
 	return nil
 }
