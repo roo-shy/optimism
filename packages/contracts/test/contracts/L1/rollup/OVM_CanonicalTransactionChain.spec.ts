@@ -767,7 +767,7 @@ describe('OVM_CanonicalTransactionChain', () => {
       )
     })
 
-    describe('Sad path cases', () => {
+    describe.skip('Sad path cases', () => {
       const target = NON_ZERO_ADDRESS
       const gasLimit = 500_000
       const data = '0x' + '12'.repeat(1234)

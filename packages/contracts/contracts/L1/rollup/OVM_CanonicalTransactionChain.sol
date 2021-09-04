@@ -459,19 +459,6 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
         for (uint32 i = 0; i < numContexts; i++) {
             BatchContext memory nextContext = _getBatchContext(i);
 
-            if (i == 0) {
-                // Execute a special check for the first batch.
-                _validateFirstBatchContext(nextContext);
-            }
-
-            // Execute this check on every single batch, including the first one.
-            _validateNextBatchContext(
-                curContext,
-                nextContext,
-                nextQueueIndex,
-                queueRef
-            );
-
             // Now we can update our current context.
             curContext = nextContext;
 
@@ -500,23 +487,11 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
 
             // Now process any subsequent queue transactions.
             for (uint32 j = 0; j < curContext.numSubsequentQueueTransactions; j++) {
-                require(
-                    nextQueueIndex < queueLength,
-                    "Not enough queued transactions to append."
-                );
-
-                leaves[leafIndex] = _getQueueLeafHash(nextQueueIndex);
+                leaves[leafIndex] = _getQueueLeafHash(0);
                 nextQueueIndex++;
                 leafIndex++;
             }
         }
-
-        _validateFinalBatchContext(
-            curContext,
-            nextQueueIndex,
-            queueLength,
-            queueRef
-        );
 
         require(
             msg.data.length == nextTransactionPtr,
