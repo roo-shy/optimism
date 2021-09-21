@@ -2,7 +2,7 @@
 pragma solidity >0.5.0 <0.8.0;
 
 /* External Imports */
-import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import {Ownable} from '@openzeppelin/contracts/access/Ownable.sol';
 
 /**
  * @title OVM_GasPriceOracle
@@ -14,46 +14,34 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
  * Runtime target: OVM
  */
 contract OVM_GasPriceOracle is Ownable {
+  /*************
+   * Variables *
+   *************/
 
-    /*************
-     * Variables *
-     *************/
+  // Current l2 gas price
+  uint256 public gasPrice;
 
-    // Current l2 gas price
-    uint256 public gasPrice;
+  /***************
+   * Constructor *
+   ***************/
 
-    /***************
-     * Constructor *
-     ***************/
+  /**
+   * @param _owner Address that will initially own this contract.
+   */
+  constructor(address _owner, uint256 _initialGasPrice) Ownable() {
+    setGasPrice(_initialGasPrice);
+    transferOwnership(_owner);
+  }
 
-    /**
-     * @param _owner Address that will initially own this contract.
-     */
-    constructor(
-        address _owner,
-        uint256 _initialGasPrice
-    )
-        Ownable()
-    {
-        setGasPrice(_initialGasPrice);
-        transferOwnership(_owner);
-    }
+  /********************
+   * Public Functions *
+   ********************/
 
-
-    /********************
-     * Public Functions *
-     ********************/
-
-    /**
-     * Allows the owner to modify the l2 gas price.
-     * @param _gasPrice New l2 gas price.
-     */
-    function setGasPrice(
-        uint256 _gasPrice
-    )
-        public
-        onlyOwner
-    {
-        gasPrice = _gasPrice;
-    }
+  /**
+   * Allows the owner to modify the l2 gas price.
+   * @param _gasPrice New l2 gas price.
+   */
+  function setGasPrice(uint256 _gasPrice) public onlyOwner {
+    gasPrice = _gasPrice;
+  }
 }
