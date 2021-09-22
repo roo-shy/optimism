@@ -36,6 +36,16 @@ Extensive documentation is available [here](http://community.optimism.io/docs/).
 * [`ops`](./ops): Contains Dockerfiles for containerizing each service involved in the protocol,
 as well as a docker-compose file for bringing up local testnets easily
 
+## Architecture
+
+### High-Level Architecture
+
+<div align="center">
+  <img alt="Optimism" src="./assets/architecture-1.svg">
+</div>
+
+### Sequencer Node Architecture
+
 ## Contributing
 
 Read through [CONTRIBUTING.md](./CONTRIBUTING.md) for a general overview of our contribution process.
