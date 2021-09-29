@@ -2,46 +2,89 @@ import { expect } from '../../../setup'
 
 /* External Imports */
 import { ethers } from 'hardhat'
-import { ContractFactory, Contract, Signer } from 'ethers'
-
+import { Signer } from 'ethers'
 import { calculateL1GasUsed, calculateL1Fee } from '@eth-optimism/core-utils'
+import {
+  smock,
+  MockContractFactory,
+  MockContract,
+} from '@defi-wonderland/smock'
 
 describe('OVM_GasPriceOracle', () => {
   const initialGasPrice = 0
+  const GAS_PRICE_UPDATER_ROLE = ethers.utils.solidityKeccak256(
+    ['string'],
+    ['GAS_PRICE_UPDATER_ROLE']
+  )
+  const KEY_MANAGER_ROLE = ethers.utils.solidityKeccak256(
+    ['string'],
+    ['KEY_MANAGER_ROLE']
+  )
+
   let signer1: Signer
   let signer2: Signer
+  let signer3: Signer
   before(async () => {
-    ;[signer1, signer2] = await ethers.getSigners()
+    ;[signer1, signer2, signer3] = await ethers.getSigners()
   })
 
-  let Factory__OVM_GasPriceOracle: ContractFactory
+  let Factory__OVM_GasPriceOracle: MockContractFactory<any>
   before(async () => {
-    Factory__OVM_GasPriceOracle = await ethers.getContractFactory(
-      'OVM_GasPriceOracle'
-    )
+    Factory__OVM_GasPriceOracle = await smock.mock('OVM_GasPriceOracle')
   })
 
-  let OVM_GasPriceOracle: Contract
+  let OVM_GasPriceOracle: any // MockContract, waiting on fix to smock to be merged.
   beforeEach(async () => {
-    OVM_GasPriceOracle = await Factory__OVM_GasPriceOracle.deploy(
-      await signer1.getAddress()
-    )
+    OVM_GasPriceOracle = await Factory__OVM_GasPriceOracle.deploy()
 
-    OVM_GasPriceOracle.setOverhead(2750)
-    OVM_GasPriceOracle.setScalar(1500000)
-    OVM_GasPriceOracle.setDecimals(6)
+    // The fact that this actually works is insane.
+    await OVM_GasPriceOracle.setVariable('_roles', {
+      [GAS_PRICE_UPDATER_ROLE]: {
+        members: {
+          [await signer1.getAddress()]: true,
+        },
+        adminRole: KEY_MANAGER_ROLE,
+      },
+      [KEY_MANAGER_ROLE]: {
+        members: {
+          [await signer2.getAddress()]: true,
+        },
+        adminRole: KEY_MANAGER_ROLE,
+      },
+    })
+
+    await OVM_GasPriceOracle.setOverhead(2750)
+    await OVM_GasPriceOracle.setScalar(1500000)
+    await OVM_GasPriceOracle.setDecimals(6)
   })
 
-  describe('owner', () => {
-    it('should have an owner', async () => {
-      expect(await OVM_GasPriceOracle.owner()).to.equal(
-        await signer1.getAddress()
-      )
+  describe('role management', () => {
+    it('should allow the key manager to manage the gas price updater role', async () => {
+      expect(
+        await OVM_GasPriceOracle.hasRole(
+          GAS_PRICE_UPDATER_ROLE,
+          await signer3.getAddress()
+        )
+      ).to.equal(false)
+
+      await expect(
+        OVM_GasPriceOracle.connect(signer2).grantRole(
+          GAS_PRICE_UPDATER_ROLE,
+          await signer3.getAddress()
+        )
+      ).to.not.be.reverted
+
+      expect(
+        await OVM_GasPriceOracle.hasRole(
+          GAS_PRICE_UPDATER_ROLE,
+          await signer3.getAddress()
+        )
+      ).to.equal(true)
     })
   })
 
   describe('setGasPrice', () => {
-    it('should revert if called by someone other than the owner', async () => {
+    it('should revert if called by someone who does not have the correct role', async () => {
       await expect(OVM_GasPriceOracle.connect(signer2).setGasPrice(1234)).to.be
         .reverted
     })
@@ -90,7 +133,7 @@ describe('OVM_GasPriceOracle', () => {
   })
 
   describe('setL1BaseFee', () => {
-    it('should revert if called by someone other than the owner', async () => {
+    it('should revert if called by someone who does not have the correct role', async () => {
       await expect(OVM_GasPriceOracle.connect(signer2).setL1BaseFee(1234)).to.be
         .reverted
     })
@@ -181,7 +224,7 @@ describe('OVM_GasPriceOracle', () => {
   })
 
   describe('setOverhead', () => {
-    it('should revert if called by someone other than the owner', async () => {
+    it('should revert if called by someone who does not have the correct role', async () => {
       await expect(OVM_GasPriceOracle.connect(signer2).setOverhead(1234)).to.be
         .reverted
     })
@@ -228,7 +271,7 @@ describe('OVM_GasPriceOracle', () => {
   })
 
   describe('setScalar', () => {
-    it('should revert if called by someone other than the owner', async () => {
+    it('should revert if called by someone who does not have the correct role', async () => {
       await expect(OVM_GasPriceOracle.connect(signer2).setScalar(1234)).to.be
         .reverted
     })

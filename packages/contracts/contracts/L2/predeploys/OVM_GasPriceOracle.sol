@@ -2,7 +2,7 @@
 pragma solidity ^0.8.8;
 
 /* External Imports */
-import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
 
 /**
  * @title OVM_GasPriceOracle
@@ -15,12 +15,19 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
  * constructor doesn't run in practice as the L2 state generation script uses
  * the deployed bytecode instead of running the initcode.
  */
-contract OVM_GasPriceOracle is Ownable {
+contract OVM_GasPriceOracle is AccessControl {
+
+    /*************
+     * Constants *
+     *************/
+
+    bytes32 public constant KEY_MANAGER_ROLE = keccak256("KEY_MANAGER_ROLE");
+    bytes32 public constant GAS_PRICE_UPDATER_ROLE = keccak256("GAS_PRICE_UPDATER_ROLE");
+
 
     /*************
      * Variables *
      *************/
-
 
     // Current L2 gas price
     uint256 public gasPrice;
@@ -33,20 +40,6 @@ contract OVM_GasPriceOracle is Ownable {
     // Number of decimals of the scalar
     uint256 public decimals;
 
-    /***************
-     * Constructor *
-     ***************/
-
-    /**
-     * @param _owner Address that will initially own this contract.
-     */
-    constructor(
-        address _owner
-    )
-        Ownable()
-    {
-        transferOwnership(_owner);
-    }
 
     /**********
      * Events *
@@ -57,6 +50,7 @@ contract OVM_GasPriceOracle is Ownable {
     event OverheadUpdated(uint256);
     event ScalarUpdated(uint256);
     event DecimalsUpdated(uint256);
+
 
     /********************
      * Public Functions *
@@ -70,7 +64,7 @@ contract OVM_GasPriceOracle is Ownable {
         uint256 _gasPrice
     )
         public
-        onlyOwner
+        onlyRole(GAS_PRICE_UPDATER_ROLE)
     {
         gasPrice = _gasPrice;
         emit GasPriceUpdated(_gasPrice);
@@ -84,7 +78,7 @@ contract OVM_GasPriceOracle is Ownable {
         uint256 _baseFee
     )
         public
-        onlyOwner
+        onlyRole(GAS_PRICE_UPDATER_ROLE)
     {
         l1BaseFee = _baseFee;
         emit L1BaseFeeUpdated(_baseFee);
@@ -98,7 +92,7 @@ contract OVM_GasPriceOracle is Ownable {
         uint256 _overhead
     )
         public
-        onlyOwner
+        onlyRole(GAS_PRICE_UPDATER_ROLE)
     {
         overhead = _overhead;
         emit OverheadUpdated(_overhead);
@@ -112,7 +106,7 @@ contract OVM_GasPriceOracle is Ownable {
         uint256 _scalar
     )
         public
-        onlyOwner
+        onlyRole(GAS_PRICE_UPDATER_ROLE)
     {
         scalar = _scalar;
         emit ScalarUpdated(_scalar);
@@ -126,7 +120,7 @@ contract OVM_GasPriceOracle is Ownable {
         uint256 _decimals
     )
         public
-        onlyOwner
+        onlyRole(GAS_PRICE_UPDATER_ROLE)
     {
         decimals = _decimals;
         emit DecimalsUpdated(_decimals);

@@ -1,4 +1,5 @@
 /* External Imports */
+import { ethers } from 'ethers'
 import {
   computeStorageSlots,
   getStorageLayout,
@@ -12,6 +13,8 @@ import { getContractArtifact } from './contract-artifacts'
 export interface RollupDeployConfig {
   // Address that will own the L2 deployer whitelist.
   whitelistOwner: string
+  // Address that will manage keys for the gas price oracle.
+  gasPriceOracleKeyManager: string
   // Address that will own the L2 gas price oracle.
   gasPriceOracleOwner: string
   // Overhead value of the gas price oracle
@@ -54,12 +57,34 @@ export const makeL2GenesisFile = async (
     }
   }
 
+  const GAS_PRICE_UPDATER_ROLE = ethers.utils.solidityKeccak256(
+    ['string'],
+    ['GAS_PRICE_UPDATER_ROLE']
+  )
+  const KEY_MANAGER_ROLE = ethers.utils.solidityKeccak256(
+    ['string'],
+    ['KEY_MANAGER_ROLE']
+  )
+
   const variables = {
     OVM_DeployerWhitelist: {
       owner: cfg.whitelistOwner,
     },
     OVM_GasPriceOracle: {
-      _owner: cfg.gasPriceOracleOwner,
+      _roles: {
+        [GAS_PRICE_UPDATER_ROLE]: {
+          members: {
+            [cfg.gasPriceOracleOwner]: true,
+          },
+          adminRole: KEY_MANAGER_ROLE,
+        },
+        [KEY_MANAGER_ROLE]: {
+          members: {
+            [cfg.gasPriceOracleKeyManager]: true,
+          },
+          adminRole: KEY_MANAGER_ROLE,
+        },
+      },
       gasPrice: cfg.gasPriceOracleGasPrice,
       l1BaseFee: cfg.gasPriceOracleL1BaseFee,
       overhead: cfg.gasPriceOracleOverhead,
