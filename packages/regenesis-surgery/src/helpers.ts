@@ -15,6 +15,8 @@ import {
   ECDSA_CONTRACT_ACCOUNT_PREDEPLOY_SLOT,
   IMPLEMENTATION_KEY,
   skip,
+  uniswapLibraries,
+  uniswapContractAddresses,
 } from '../src/constants'
 
 export const isPredeploy = (contract: EtherscanContract): boolean => {
@@ -31,6 +33,16 @@ export const hasSourceCode = (contract: EtherscanContract): boolean => {
 
 export const isSafeToSkip = (contract: EtherscanContract): boolean => {
   return skip.includes(contract.contractAddress)
+}
+
+export const isUniswapLibrary = (contract: EtherscanContract): boolean => {
+  return uniswapLibraries.has(contract.contractAddress)
+}
+
+export const isUniswapContractAddress = (
+  contract: EtherscanContract
+): boolean => {
+  return uniswapContractAddresses.has(contract.contractAddress)
 }
 
 export const isEOA = async (

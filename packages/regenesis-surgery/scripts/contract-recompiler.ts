@@ -29,6 +29,8 @@ import {
   isSafeToSkip,
   isEOA,
   solcInput,
+  isUniswapLibrary,
+  isUniswapContractAddress,
 } from '../src/helpers'
 import { ethers } from 'ethers'
 
@@ -38,8 +40,10 @@ const env = process.env
 const STATE_DUMP_PATH = env.STATE_DUMP_PATH
 const ETHERSCAN_CONTRACTS_PATH = env.ETHERSCAN_CONTRACTS_PATH
 const ETHEREUM_HTTP_URL = env.ETHEREUM_HTTP_URL
+const L1_HTTP_URL = env.L1_HTTP_URL
 
 const provider = new ethers.providers.JsonRpcProvider(ETHEREUM_HTTP_URL)
+const l1Provider = new ethers.providers.JsonRpcProvider(L1_HTTP_URL)
 
 ;(async () => {
   // First download all required versions of solc
@@ -98,6 +102,28 @@ const provider = new ethers.providers.JsonRpcProvider(ETHEREUM_HTTP_URL)
       }
       continue
     }
+
+    // Wipe all Uniswap library addresses as they are no longer necessary
+    if (isUniswapLibrary(contract)) {
+      console.log(`Wiping Uniswap library ${contract.contractAddress}`)
+      // TODO: do the wiping in state dump
+      // delete dump.accounts[contract.contractAddress]
+      continue
+    }
+
+    // Replace Uniswap Contracts with their L1 code
+    if (isUniswapContractAddress(contract)) {
+      console.log(
+        `Replacing Uniswap contract ${contract.contractAddress} with L1 code`
+      )
+      const contractCode = await l1Provider.getCode(contract.contractAddress)
+      // TODO: replace code
+      // dump.accounts[contract.contractAddress].code = contractCode
+      continue
+    }
+
+    // TODO: also handle Uniswap oldPool case where there's no code
+    // in the dump after surgery but possibly has sourcecode from Etherscan
 
     // Process contracts that have source code
     if (hasSourceCode(contract)) {
@@ -163,7 +189,9 @@ const provider = new ethers.providers.JsonRpcProvider(ETHEREUM_HTTP_URL)
         let ovmFile
         if (contract.contractFileName) {
           ovmFile =
-            ovmOutput.contracts[contract.contractFileName][contract.contractName]
+            ovmOutput.contracts[contract.contractFileName][
+              contract.contractName
+            ]
         } else {
           ovmFile = ovmOutput.contracts.file[contract.contractName]
         }
@@ -224,6 +252,25 @@ const provider = new ethers.providers.JsonRpcProvider(ETHEREUM_HTTP_URL)
         console.warn('this contract has immutables', contract.contractAddress)
         hasImmutables[contract.contractAddress] =
           mainOutput.evm.deployedBytecode.immutableReferences
+
+        // TODO: handle immutables
+        // High level: want to inject the right values into immutable references
+        // Immutables: will be injected at deploy time, here we have to simulate what solidity would do
+        // they're placeholders in the bytecode, the placeholders are set during deploy
+        // so we manually fill immutables as if we are running the constructor
+
+        // immutableRef object: variableId (key) -> array of objectss of start position -> length
+        // need to inject variables into these positions (of the bytecode? storage slot?)
+        // if we are just recompiling; HOPEFULLY the IDs remain consistent (TODO: check this?)
+        // using the OVM-compiled contract, pull out variable values, then inject it using evm
+        // we need to go backwards here to match up variableIds
+
+        // If OVM / EVM variable ids didn't change - we can just slice the code out and reinject it
+        // If variable ids don't match, we'll have to match variable id to variable name (ask Kelvin here if necessary)
+        // ^L2provider getCode here to get OVM bytecode
+        // If immutables are public by default (doesn't work if private) - we can just compile with EVM
+        // work backwards to get variable name from id; query the contract so we get the value, but we don't
+        // know if we can query it
       }
 
       // Link libraries
@@ -263,12 +310,6 @@ const provider = new ethers.providers.JsonRpcProvider(ETHEREUM_HTTP_URL)
   // TODO: handle immutables
   //console.log('has immutables', hasImmutables)
   //console.log('all libraries from etherscan file', libraries)
-
-  // TODO: Uniswap: use their published contracts or libraries and just
-  // replace with bytecode from there
-  // Some contracts will just need to be wiped (those split specifically for OVM)
-  // See https://github.com/ethereum-optimism/optimism/pull/1481/files#diff-de41f93baec1842678463433ac56cf5ca6f669d64046729dfbf03dc6b3f03dfeR310-R312
-  // for accessing uniswap compiler output
 })().catch((err) => {
   console.log(err)
   process.exit(1)
