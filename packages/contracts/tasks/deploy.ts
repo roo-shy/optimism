@@ -65,6 +65,12 @@ task('deploy')
     undefined,
     types.string
   )
+  .addOptionalParam(
+    'forkNetwork',
+    'Enable this when using a forked network',
+    undefined,
+    types.string
+  )
   .setAction(async (args, hre: any, runSuper) => {
     // Necessary because hardhat doesn't let us attach non-optional parameters to existing tasks.
     const validateAddressArg = (argName: string) => {
